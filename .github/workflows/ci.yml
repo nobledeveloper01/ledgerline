@@ -8,6 +8,20 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # A real PostgreSQL, so the Phase 1 gate — migrations and a live database
+    # produce byte-identical schemas — runs on every push, not only on a laptop.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ledgerline
+          POSTGRES_PASSWORD: ledgerline
+          POSTGRES_DB: ledgerline_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ledgerline" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      LEDGERLINE_TEST_DATABASE_URL: postgres://ledgerline:ledgerline@localhost:5432/ledgerline_test
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,3 +33,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: make ci
+      - run: make live-check

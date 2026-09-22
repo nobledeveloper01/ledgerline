@@ -1,9 +1,9 @@
 {
-  "name": "@ledgerline/model",
+  "name": "@ledgerline/parse",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The rules: what a relationship is, how declared and used reconcile, what drift is. Imports nothing.",
+  "description": "PostgreSQL DDL \u2192 the declared schema, through PostgreSQL's own grammar.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -18,6 +18,10 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --conditions=source --test 'test/**/*.test.ts'",
     "lint": "eslint src test"
+  },
+  "dependencies": {
+    "@ledgerline/model": "workspace:*",
+    "@pgsql/parser": "^1.5.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

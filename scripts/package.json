@@ -1,0 +1,1 @@
+{ "name": "ledgerline-scripts", "private": true, "type": "module", "dependencies": { "@ledgerline/model": "workspace:*", "@ledgerline/sources": "workspace:*", "@ledgerline/parse": "workspace:*" } }

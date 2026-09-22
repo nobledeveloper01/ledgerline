@@ -5,6 +5,56 @@ The surprises are the point.
 
 ---
 
+## 2026-09-22, evening — Phase 1: the declared side, and the one word that differed
+
+**Did.** `@ledgerline/parse` (libpg_query through `@pgsql/parser`, a
+`SchemaBuilder` that folds statements in order), `@ledgerline/sources`
+(migrations directory, Prisma via `@mrleebo/prisma-ast`, live PostgreSQL over
+`pg_catalog`, the model file), a generated 200-table corpus, a `live-check`
+gate, CI with a Postgres 16 service. Phase 1 cleared; Phase 2 opened.
+
+### What surprised us
+
+**The two readers disagreed on exactly one word.** Tables, columns,
+nullability, keys, uniques, 375 foreign keys across three schemas — all
+identical — and `serial` versus `integer`. PostgreSQL never stores `serial`;
+it stores `integer` with a sequence default and reports `integer` back.
+ADR-0002: spell every type as the database does. The gate that asks for
+byte-identical output is the only reason this was found today rather than on
+the first user's first diff.
+
+**`node --test` runs files in parallel, and two of them shared a database.**
+The 200-table gate found the small test's `orders` and `users` inside its own
+introspection — one extra foreign key, 376 against 375. Each live test now
+creates its own database from the maintenance connection. Isolation that was
+not needed until a second file reached for the same server.
+
+**`@pgsql/parser`'s ESM entry does not load.** It re-exports `./types`, a
+directory, which Node's ESM resolver refuses; the CommonJS entry resolves it.
+`createRequire` in an ESM file, one line, and a comment saying why.
+
+**`pg` returns `name[]` as the literal `{a,b}`.** Every array column is cast to
+`text[]` in the introspection queries so the driver parses it. Found in the
+first row of the first run.
+
+**Prisma's parser wants the file laid out the way Prisma writes it.** A
+one-line `model User { id Int @id ... }` fails with *expecting LineBreak*;
+fields on their own lines parse. Fine for real files, worth knowing for tests.
+
+**The corpus is generated, not copied.** The roadmap said *from a public
+open-source project*; a 200-table DDL dump of a GPL project inside an
+Apache-2.0 repository is a licence question with no upside, and a generator
+with a fixed seed gives renames, alters, composite and unnamed keys and three
+schemas on demand. Real repositories are the Phase 4 gate, where the point is
+finding true undeclared relationships in them, not parsing them.
+
+### Still open
+
+- Drizzle as a source moved to Phase 5 with the other ORMs; Prisma is in.
+- Phase 2: the queries — joins, cross-table `WHERE`, subqueries, polymorphic
+  pairs — into claims with evidence, and the property test over generated
+  schemas and query sets.
+
 ## 2026-09-22, later — Phase 0, and the rules ahead of their inputs
 
 **Did.** The pnpm workspace, `@ledgerline/model` with schema, claims, reconcile,

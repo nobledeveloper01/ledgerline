@@ -21,13 +21,16 @@ npx ledgerline check          # one command, no database, no account
 
 ## Status
 
-**Phase 1 of 5 — schema → model.** The rules exist and are tested: what a
-relationship is, how declared and used reconcile into three edge states, what
-changed between two models, and the sentence each finding prints. Nothing reads a
-real schema yet; that is this phase. Nothing is usable yet.
+**Phase 2 of 5 — queries → model, the technical core.** The rules exist and
+are tested, and the declared side is read: PostgreSQL DDL through PostgreSQL's
+own grammar, migrations folded in order, `schema.prisma`, and a live database —
+with migrations and the live database proven to agree byte for byte on a
+200-table corpus, on every CI run. What nothing reads yet is the queries; that
+is this phase. Nothing is usable from the command line yet.
 
-**The numbers.** 11 model tests · 3 fixtures diffed on every build · 6 gates, the
-boundary gate broken on purpose every run · 1 ADR.
+**The numbers.** 22 tests across three packages, two of them against a real
+PostgreSQL · 4 fixtures diffed on every build, one of 200 tables · 7 gates, the
+boundary gate broken on purpose every run · 2 ADRs.
 
 | | |
 |---|---|

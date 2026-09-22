@@ -1,21 +1,38 @@
-// Writes every fixture's expected.json from its input.json through the model.
-// `make fixtures` to regenerate deliberately; `make fixtures-check` diffs.
-import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+// Writes every fixture's expected.json through the rules. `make fixtures` to
+// regenerate deliberately; `make fixtures-check` diffs.
+//
+// A fixture is a directory with either `input.json` (a DeclaredSchema and
+// Claims, handed straight to the model) or `migrations/` (real DDL, read
+// through the parser first, with optional `claims.json` beside it). Both
+// kinds produce the same `expected.json`: the reconciled model and its
+// findings. The migrations kind is what holds the parser to the corpus.
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { findings, reconcile, type Claims, type DeclaredSchema } from '../packages/model/src/index.ts';
+import { findings, reconcile, NO_CLAIMS, type Claims, type DeclaredSchema } from '@ledgerline/model';
+import { schemaFromMigrations } from '@ledgerline/sources';
 
 const root = join(import.meta.dirname, '..', 'fixtures');
 const check = process.argv.includes('--check');
 let drift = 0;
 let n = 0;
 for (const dir of readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort()) {
-  const inputPath = join(root, dir, 'input.json');
-  if (!existsSync(inputPath)) continue;
-  const input = JSON.parse(readFileSync(inputPath, 'utf8')) as { schema: DeclaredSchema; claims: Claims };
-  const model = reconcile(input.schema, input.claims);
+  const base = join(root, dir);
+  let schema: DeclaredSchema;
+  let claims: Claims;
+  if (existsSync(join(base, 'input.json'))) {
+    const input = JSON.parse(readFileSync(join(base, 'input.json'), 'utf8')) as { schema: DeclaredSchema; claims: Claims };
+    schema = input.schema;
+    claims = input.claims;
+  } else if (existsSync(join(base, 'migrations'))) {
+    schema = await schemaFromMigrations(join(base, 'migrations'));
+    claims = existsSync(join(base, 'claims.json')) ? (JSON.parse(readFileSync(join(base, 'claims.json'), 'utf8')) as Claims) : NO_CLAIMS;
+  } else {
+    continue;
+  }
+  const model = reconcile(schema, claims);
   const expected = JSON.stringify({ model, findings: findings(model) }, null, 2) + '\n';
-  const outPath = join(root, dir, 'expected.json');
+  const outPath = join(base, 'expected.json');
   n++;
   if (check) {
     const current = existsSync(outPath) ? readFileSync(outPath, 'utf8') : '';

@@ -23,15 +23,23 @@ doc-check: ## The documentation gate
 	@./scripts/doc-check.sh
 
 fixtures: ## Regenerate every fixture's expected.json from the rules — deliberately, then read the diff
-	@node scripts/emit-fixtures.ts
+	@node --conditions=source scripts/emit-fixtures.ts
 
 fixtures-check: ## Fail if a rule changed and no fixture changed with it
-	@node scripts/emit-fixtures.ts --check
+	@node --conditions=source scripts/emit-fixtures.ts --check
 
-test: ## Every package's tests
+test: ## Every package's tests; the live-database tests skip yellow unless LEDGERLINE_TEST_DATABASE_URL is set
 	@pnpm -r test
+
+live-check: ## Fail if the live-database tests were skipped — the Phase 1 gate, run where a PostgreSQL is
+	@test -n "$$LEDGERLINE_TEST_DATABASE_URL" || (echo "LEDGERLINE_TEST_DATABASE_URL is not set — the migrations-vs-live gate did not run"; exit 1)
+	@cd packages/sources && pnpm test 2>&1 | tee /tmp/ledgerline-live.log | grep -qE "^ℹ skipped 0$$" || (echo "a live-database test was skipped"; exit 1)
+	@echo "migrations and a live PostgreSQL agree byte for byte on every corpus"
+
+large: ## Regenerate the 200-table migrations fixture
+	@node --conditions=source scripts/emit-large-schema.ts
 
 hooks: ## Install the git hooks
 	@git config core.hooksPath .githooks && echo "hooks installed"
 
-.PHONY: help ci gates typecheck lint boundary doc-check fixtures fixtures-check test hooks
+.PHONY: help ci gates typecheck lint boundary doc-check fixtures fixtures-check test live-check large hooks

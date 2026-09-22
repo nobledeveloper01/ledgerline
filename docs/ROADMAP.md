@@ -34,7 +34,7 @@ broken by changing one line number in a fixture and refused, then restored. The
 model went further than the gate asked: reconcile, diff and findings are all
 written and tested, so Phase 1 has only to produce their inputs.
 
-## Phase 1 — Schema → model · **current**
+## Phase 1 — Schema → model · **cleared 2026-09-22**
 
 Reading what the database declares.
 
@@ -49,12 +49,21 @@ Reading what the database declares.
 - The model file: `ledgerline.model.json`, canonical ordering, stable ids,
   diff-friendly.
 
-**Exit gate.** *Every schema in `fixtures/` — including one with 200 tables from a
-public open-source project — parses to the model its fixture declares; the same
-schema read from migrations and from a live database produces byte-identical model
-files.*
+**Exit gate.** *Every schema in `fixtures/` — including one with 200 tables —
+parses to the model its fixture declares; the same schema read from migrations and
+from a live database produces byte-identical model files.*
 
-## Phase 2 — Queries → model — **the technical core**
+**Cleared.** `@ledgerline/parse` reads DDL through libpg_query (PostgreSQL's own
+grammar as WebAssembly) and folds migrations in order — create, alter, rename,
+drop, unique indexes; `@ledgerline/sources` reads a migrations directory, a
+`schema.prisma`, and a live PostgreSQL over `pg_catalog`. The 200-table corpus
+is generated (`make large`) rather than copied from a public project, so it is
+licence-free and deterministic; real repositories are Phase 4's gate. Migrations
+and a live PostgreSQL 16 agree byte for byte on every corpus, locally and on CI
+(`make live-check`, with a Postgres service). Drizzle sources move to Phase 5
+with the other ORMs; Prisma is in.
+
+## Phase 2 — Queries → model — **the technical core** · **current**
 
 Reading what the application does.
 
