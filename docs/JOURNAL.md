@@ -29,7 +29,20 @@ the rule, none of it true of the product. The audit that found it was
 other one of the fifteen had a command or a gate behind it; this one had a
 unit test, which is exactly the kind of green that means nothing.
 
-Building it found two more: the query walker only ever read *join predicates*,
+So the gate that should have existed now does: `make reach` (ADR-0006), every
+model export must have a caller outside the model or a written reason why not.
+It found five more the moment it ran — two constants spelled out a second time
+by hand elsewhere, one genuinely dead, one public contract nobody could reach.
+
+**And the new gate could not read one of its own files.** `schema.ts` held two
+raw NUL bytes where the escape was meant — a `join()` separator written as the
+byte itself. `file` called it data, `grep` skipped it silently, and seven of
+the model's exports were invisible to the gate written to find exactly that.
+The gate now refuses a source file it cannot read as text, which is the second
+time today the lesson was *a check that silently sees less than it thinks is
+worse than no check*.
+
+Building `usage` found two more: the query walker only ever read *join predicates*,
 so `SELECT id, email FROM users` recorded `id` (from the WHERE) and not
 `email`, and `SELECT *` recorded nothing at all. Both were invisible while the
 only question asked of a query was *what does it join*.

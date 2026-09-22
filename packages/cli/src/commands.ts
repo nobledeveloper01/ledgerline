@@ -11,11 +11,13 @@ import { join } from 'node:path';
 
 import {
   againstBaseline,
+  BASELINE_VERSION,
   blastRadius,
   changeFindings,
   diff,
   explain as explainFinding,
   fails,
+  findingKey,
   findings as modelFindings,
   isEmptyDiff,
   makeBaseline,
@@ -54,7 +56,9 @@ export function sortFindings(list: readonly Finding[]): Finding[] {
 function readBaseline(path: string): Baseline | null {
   if (!existsSync(path)) return null;
   const parsed = JSON.parse(readFileSync(path, 'utf8')) as Baseline;
-  if (parsed.version !== 1) throw new Error(`${path}: baseline format ${String(parsed.version)} is not 1`);
+  // The version lives in the model package; comparing to a literal here is a
+  // second place the number lives, and the two would drift.
+  if (parsed.version !== BASELINE_VERSION) throw new Error(`${path}: baseline format ${String(parsed.version)} is not ${BASELINE_VERSION}`);
   return parsed;
 }
 
@@ -97,7 +101,13 @@ export async function check(options: CommonOptions & { write?: boolean; baseline
     }
   }
 
-  for (const f of active) lines.push(`${f.severity}: ${f.sentence}${f.where.length > 0 ? `\n    ${f.where.slice(0, 3).join('\n    ')}` : ''}`);
+  for (const f of active) {
+    lines.push(`${f.severity}: ${f.sentence}${f.where.length > 0 ? `\n    ${f.where.slice(0, 3).join('\n    ')}` : ''}`);
+    // With a baseline in play, a reviewer who has decided this one is debt
+    // should be able to accept *it* — pasting one line — rather than running
+    // `ledgerline baseline`, which would accept everything else too.
+    if (baseline !== null && f.severity === 'fail') lines.push(`    to accept just this one, add to ${config.baseline}: ${JSON.stringify(findingKey(f))}`);
+  }
   if (considered) {
     if (considered.accepted.length > 0) lines.push(`${considered.accepted.length} finding${considered.accepted.length === 1 ? '' : 's'} accepted by ${config.baseline}`);
     if (considered.fixed.length > 0) lines.push(`${considered.fixed.length} baseline entr${considered.fixed.length === 1 ? 'y is' : 'ies are'} fixed — run ledgerline baseline to shrink it`);

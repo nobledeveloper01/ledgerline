@@ -22,8 +22,6 @@ export interface Baseline {
   readonly takenAt?: string;
 }
 
-export const EMPTY_BASELINE: Baseline = { version: BASELINE_VERSION, accepted: [] };
-
 /**
  * What identifies a finding across runs.
  *

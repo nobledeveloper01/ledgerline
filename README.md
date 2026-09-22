@@ -103,9 +103,9 @@ npx ledgerline check
 
 **The numbers.** 76 tests across five packages, two against a real PostgreSQL,
 three of them 200-world properties · 6 fixtures diffed on every build, two of
-them 200 tables — the same schema in PostgreSQL and in MySQL · 9 gates, three
-of them — the boundary, the fixtures and the tool itself — broken on purpose
-every run · 5 ADRs · 10 commands · 7 places a schema can come
+them 200 tables — the same schema in PostgreSQL and in MySQL · 10 gates, four
+of them — the boundary, reachability, the fixtures and the tool itself — broken
+on purpose every run · 6 ADRs · 10 commands · 7 places a schema can come
 from, and none of them is run.
 
 | | |

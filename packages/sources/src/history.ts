@@ -8,7 +8,7 @@
  * person looks for; timestamps in those names are theirs to read.
  */
 
-import type { DeclaredSchema } from '@ledgerline/model';
+import { EMPTY_SCHEMA, type DeclaredSchema } from '@ledgerline/model';
 import { SchemaBuilder } from '@ledgerline/parse';
 
 import { listMigrations, type MigrationFile } from './migrations.ts';
@@ -44,7 +44,7 @@ function snapshot(s: DeclaredSchema): Map<string, { columns: Map<string, string>
 /** Every change each migration made, in order. */
 export async function historyOf(files: readonly MigrationFile[]): Promise<HistoryEvent[]> {
   const builder = new SchemaBuilder();
-  let before = snapshot({ tables: [], foreignKeys: [] });
+  let before = snapshot(EMPTY_SCHEMA);
   const events: HistoryEvent[] = [];
   for (const f of files) {
     await builder.apply(f.sql, f.name);

@@ -4,7 +4,24 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
 
 ## [Unreleased]
 
+### Fixed
+
+- `EMPTY_SCHEMA` and the baseline's format version were each spelled out a
+  second time by hand in another package, which is two places for one fact to
+  live and drift. Both now come from the one place that defines them.
+- `check` prints the exact baseline key beside each failing finding, so a
+  reviewer who has decided *this one* is debt can paste one line into
+  `ledgerline.baseline.json` instead of running `ledgerline baseline`, which
+  would accept everything else with it.
+
 ### Added
+
+- **`make reach`** (ADR-0006): every rule the model exports must have a caller
+  outside the model, or a written reason in `scripts/model-internal.txt` for
+  why it does not. It exists because `ledgerline usage` below was a rule with
+  a unit test and no command — green, covered, and not a feature. Like every
+  gate here it proves itself, by planting an export nothing could call and
+  requiring the check to fail.
 
 - **`ledgerline usage`** — ADR-0003 #2, which was a rule in the model with no
   command behind it until now. Given a query log in `ledgerline.json`, it says

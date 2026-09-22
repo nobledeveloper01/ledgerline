@@ -66,6 +66,11 @@ export interface Claims {
 export const NO_CLAIMS: Claims = { relationships: [], polymorphic: [] };
 
 /** Every claim is required to carry evidence with text; adapters that forget are caught here, not on a diagram. */
+/**
+ * Internal, deliberately: `reconcile` is the only thing that should ever ask.
+ * A source reader that had to validate its own claims before handing them
+ * over would be a second place the rule lives.
+ */
 export function validClaim(c: RelationshipClaim | PolymorphicClaim): boolean {
   return c.evidence.text.trim().length > 0 && c.evidence.source.trim().length > 0 && c.from.length > 0;
 }

@@ -1,0 +1,12 @@
+# Values the model exports that nothing outside the model calls, with why.
+#
+# `reach-check.sh` fails on any other one. An entry here is a decision
+# somebody made on purpose; an empty line or a `#` comment is ignored.
+# Format: <name> <tab or spaces> <the reason>
+
+validClaim   reconcile is the only thing that should ever ask whether a claim is well formed; a source reader that validated its own claims would be a second place the rule lives.
+tablesOf     a formatting helper `findings` shares with `reconcile`; it says how a set of columns names its tables, and is not a rule anybody outside would ask about.
+columnKey    the canonical spelling of a column reference; `reconcile` builds edge identities from it and nothing outside needs to spell one.
+findTable    a lookup `reconcile` and `findings` share; callers outside hold a Model, which already has the tables resolved.
+isUnique     asks whether a set of columns is proved unique, which is how cardinality is decided; it is an input to a rule, not a rule.
+sameTable    whether two references name the same table; `findTable` is built from it, and a caller outside holds resolved tables already.

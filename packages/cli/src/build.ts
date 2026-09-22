@@ -10,7 +10,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { reconcile, type Claims, type DeclaredSchema, type Model } from '@ledgerline/model';
+import { EMPTY_SCHEMA, reconcile, type Claims, type DeclaredSchema, type Model } from '@ledgerline/model';
 import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parseEfCoreSnapshot, parsePrisma, parseRailsSchema, parseSqlAlchemyModels, parseTypeOrmEntities, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
 import { readFileSync } from 'node:fs';
 
@@ -96,7 +96,7 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
       names.push(models);
     }
   }
-  if (parts.length === 0) return { schema: { tables: [], foreignKeys: [] }, from: 'nothing' };
+  if (parts.length === 0) return { schema: EMPTY_SCHEMA, from: 'nothing' };
   // Several migration directories — a monorepo with a service each — are one schema.
   const schema: DeclaredSchema = {
     tables: parts.flatMap((p) => p.tables).sort((a, b) => (`${a.schema}.${a.name}` < `${b.schema}.${b.name}` ? -1 : 1)),
