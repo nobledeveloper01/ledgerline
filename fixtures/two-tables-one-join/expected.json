@@ -73,7 +73,8 @@
             "line": 14,
             "text": "JOIN users ON orders.user_id = users.id"
           }
-        ]
+        ],
+        "support": 1
       }
     ],
     "polymorphic": [],
@@ -84,6 +85,14 @@
       "severity": "fail",
       "code": "used_undeclared",
       "sentence": "The join in reports/summary.sql:14 relies on public.orders.user_id → public.users.id, which no constraint declares.",
+      "where": [
+        "reports/summary.sql:14"
+      ]
+    },
+    {
+      "severity": "warn",
+      "code": "orphan_side",
+      "sentence": "Rows in public.orders may reference no public.users: user_id is nullable and no constraint checks it.",
       "where": [
         "reports/summary.sql:14"
       ]

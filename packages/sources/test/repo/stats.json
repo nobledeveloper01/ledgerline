@@ -1,0 +1,2 @@
+[{"query": "SELECT * FROM orders o JOIN users u ON u.id = o.user_id WHERE u.id = $1", "calls": 4200},
+ {"query": "SELECT 1", "calls": 9}]

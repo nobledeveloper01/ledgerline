@@ -9,7 +9,8 @@ import tseslint from 'typescript-eslint';
  * asserts this configuration fails on it, every run.
  */
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**'] },
+  // `test/repo` is a fixture repository the source reader scans; its files are inputs, not code.
+  { ignores: ['**/dist/**', '**/node_modules/**', 'packages/sources/test/repo/**'] },
   ...tseslint.configs.recommendedTypeChecked,
   {
     // The config file is not source and belongs to no tsconfig; scripts/ has its own.

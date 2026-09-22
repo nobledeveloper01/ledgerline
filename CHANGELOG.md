@@ -6,6 +6,28 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
 
 ### Added
 
+- **The used side is read.** SQL the application runs becomes relationship
+  claims with evidence: `JOIN … ON`, `JOIN … USING`, cross-table `WHERE`,
+  `IN (SELECT …)`, scalar subqueries, `EXISTS`, `UPDATE … FROM`, `DELETE …
+  USING`, `INSERT … SELECT`; CTEs and derived tables are not mistaken for
+  tables; an unqualified column is resolved from the schema when unambiguous and
+  skipped, never guessed, otherwise. The Rails/Laravel polymorphic shape —
+  `owner_type = '…'` beside `owner_id = other.id`, same prefix — is one edge with
+  its targets. Sources: `.sql` directories, query logs (plain, `pg_stat_statements`
+  JSON, CSV), and string literals lexed out of source files in eleven languages
+  with `?`, `:name`, `%s`, `%(name)s` and `${…}` placeholders rewritten; comments
+  and vendored directories skipped.
+- **Query-log privacy** (ADR-0003 #14). Every literal — strings, numbers,
+  dollar-quoted blocks — is replaced by `?` before evidence is kept, and a test
+  plants an email address in a log and asserts it appears nowhere.
+- **Confidence per edge** (#3): how many distinct places support an inferred
+  edge, and the finding says *(and 3 more)*. **Cardinality only from uniqueness**
+  (#4): a crow's foot needs a key behind it. **The orphan side** (#5): a nullable
+  referencing column with no constraint is its own warning. **Ghost tables**
+  (#1): a table only the queries name is listed and fails. **Names that lie**
+  (#8): a `<x>_id` column nothing relates, or one that relates to a table its
+  name does not say, as information.
+
 - **The declared side is read.** PostgreSQL DDL through PostgreSQL's own grammar
   (libpg_query as WebAssembly, no native build): `CREATE TABLE` with inline and
   table-level constraints, `ALTER TABLE` add/drop column, add/drop constraint,

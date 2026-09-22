@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "PostgreSQL DDL \u2192 the declared schema, through PostgreSQL's own grammar.",
+  "description": "PostgreSQL DDL → the declared schema, through PostgreSQL's own grammar.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "fast-check": "^4.10.2",
     "typescript": "^5.9.2"
   }
 }

@@ -1,0 +1,3 @@
+calls,query,mean_exec_time
+12,"SELECT i.* FROM invoices i JOIN orders o ON o.id = i.order_id WHERE o.total > 5",0.4
+3,"SELECT ""quoted"" FROM x",0.1

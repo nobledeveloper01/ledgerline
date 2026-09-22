@@ -3,14 +3,15 @@
 //
 // A fixture is a directory with either `input.json` (a DeclaredSchema and
 // Claims, handed straight to the model) or `migrations/` (real DDL, read
-// through the parser first, with optional `claims.json` beside it). Both
+// through the parser first) with optional `queries/` (real SQL, read through
+// the parser too) or `claims.json` beside it. Both
 // kinds produce the same `expected.json`: the reconciled model and its
 // findings. The migrations kind is what holds the parser to the corpus.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { findings, reconcile, NO_CLAIMS, type Claims, type DeclaredSchema } from '@ledgerline/model';
-import { schemaFromMigrations } from '@ledgerline/sources';
+import { claimsFromSqlFiles, schemaFromMigrations } from '@ledgerline/sources';
 
 const root = join(import.meta.dirname, '..', 'fixtures');
 const check = process.argv.includes('--check');
@@ -26,7 +27,12 @@ for (const dir of readdirSync(root, { withFileTypes: true }).filter((d) => d.isD
     claims = input.claims;
   } else if (existsSync(join(base, 'migrations'))) {
     schema = await schemaFromMigrations(join(base, 'migrations'));
-    claims = existsSync(join(base, 'claims.json')) ? (JSON.parse(readFileSync(join(base, 'claims.json'), 'utf8')) as Claims) : NO_CLAIMS;
+    // `queries/` holds SQL the application runs, read through the parser; `claims.json` holds claims handed in directly.
+    claims = existsSync(join(base, 'queries'))
+      ? await claimsFromSqlFiles(join(base, 'queries'), schema, base)
+      : existsSync(join(base, 'claims.json'))
+        ? (JSON.parse(readFileSync(join(base, 'claims.json'), 'utf8')) as Claims)
+        : NO_CLAIMS;
   } else {
     continue;
   }

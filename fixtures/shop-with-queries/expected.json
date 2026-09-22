@@ -1,0 +1,391 @@
+{
+  "model": {
+    "tables": [
+      {
+        "schema": "public",
+        "name": "comments",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "nullable": false
+          },
+          {
+            "name": "owner_type",
+            "type": "text",
+            "nullable": false
+          },
+          {
+            "name": "owner_id",
+            "type": "bigint",
+            "nullable": false
+          },
+          {
+            "name": "body",
+            "type": "text",
+            "nullable": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "invoices",
+        "columns": [
+          {
+            "name": "id",
+            "type": "integer",
+            "nullable": false
+          },
+          {
+            "name": "order_id",
+            "type": "integer",
+            "nullable": false
+          },
+          {
+            "name": "paid",
+            "type": "boolean",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "orders",
+        "columns": [
+          {
+            "name": "id",
+            "type": "integer",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "type": "integer",
+            "nullable": true
+          },
+          {
+            "name": "total",
+            "type": "numeric(12,2)",
+            "nullable": true
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp with time zone",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "photos",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "nullable": false
+          },
+          {
+            "name": "url",
+            "type": "text",
+            "nullable": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "posts",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "nullable": false
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "nullable": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "refunds",
+        "columns": [
+          {
+            "name": "id",
+            "type": "integer",
+            "nullable": false
+          },
+          {
+            "name": "invoice_id",
+            "type": "integer",
+            "nullable": false
+          },
+          {
+            "name": "amount",
+            "type": "numeric(12,2)",
+            "nullable": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "users",
+        "columns": [
+          {
+            "name": "id",
+            "type": "integer",
+            "nullable": false
+          },
+          {
+            "name": "email",
+            "type": "text",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": [
+          [
+            "email"
+          ]
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "public.audit_log.order_id=public.orders.id",
+        "from": [
+          {
+            "schema": "public",
+            "name": "audit_log",
+            "column": "order_id"
+          }
+        ],
+        "to": [
+          {
+            "schema": "public",
+            "name": "orders",
+            "column": "id"
+          }
+        ],
+        "directed": true,
+        "state": "used_undeclared",
+        "cardinality": "many_to_one",
+        "evidence": [
+          {
+            "kind": "query",
+            "source": "queries/reports.sql",
+            "text": "-- The audit table exists only in the queries. SELECT a.* FROM audit_log a JOIN orders o ON o.id = a.order_id WHERE a.actor = ?",
+            "line": 8
+          }
+        ],
+        "support": 1
+      },
+      {
+        "id": "public.invoices.id=public.refunds.invoice_id",
+        "from": [
+          {
+            "schema": "public",
+            "name": "refunds",
+            "column": "invoice_id"
+          }
+        ],
+        "to": [
+          {
+            "schema": "public",
+            "name": "invoices",
+            "column": "id"
+          }
+        ],
+        "directed": true,
+        "state": "declared_unused",
+        "cardinality": "many_to_one",
+        "evidence": [
+          {
+            "kind": "constraint",
+            "source": "refunds_invoice_id_fkey",
+            "text": "FOREIGN KEY (invoice_id) REFERENCES public.invoices (id)"
+          }
+        ],
+        "support": 0
+      },
+      {
+        "id": "public.invoices.order_id=public.orders.id",
+        "from": [
+          {
+            "schema": "public",
+            "name": "invoices",
+            "column": "order_id"
+          }
+        ],
+        "to": [
+          {
+            "schema": "public",
+            "name": "orders",
+            "column": "id"
+          }
+        ],
+        "directed": true,
+        "state": "declared_and_used",
+        "cardinality": "many_to_one",
+        "evidence": [
+          {
+            "kind": "constraint",
+            "source": "invoices_order_id_fkey",
+            "text": "FOREIGN KEY (order_id) REFERENCES public.orders (id)"
+          },
+          {
+            "kind": "query",
+            "source": "queries/reports.sql",
+            "text": "-- Invoices per order: declared, and used. SELECT o.id, count(i.id) FROM orders o LEFT JOIN invoices i ON i.order_id = o.id GROUP BY o.id",
+            "line": 5
+          }
+        ],
+        "support": 1
+      },
+      {
+        "id": "public.orders.user_id=public.users.id",
+        "from": [
+          {
+            "schema": "public",
+            "name": "orders",
+            "column": "user_id"
+          }
+        ],
+        "to": [
+          {
+            "schema": "public",
+            "name": "users",
+            "column": "id"
+          }
+        ],
+        "directed": true,
+        "state": "used_undeclared",
+        "cardinality": "many_to_one",
+        "evidence": [
+          {
+            "kind": "query",
+            "source": "queries/reports.sql",
+            "text": "-- The monthly report: a join the schema never declared. SELECT u.email, sum(o.total) FROM orders o JOIN users u ON u.id = o.user_id WHERE o.created_at > ? GROUP BY u.email",
+            "line": 2
+          }
+        ],
+        "support": 1
+      }
+    ],
+    "polymorphic": [
+      {
+        "id": "public.comments.owner_id~public.comments.owner_type",
+        "from": [
+          {
+            "schema": "public",
+            "name": "comments",
+            "column": "owner_id"
+          }
+        ],
+        "discriminator": {
+          "schema": "public",
+          "name": "comments",
+          "column": "owner_type"
+        },
+        "targets": {
+          "Post": {
+            "schema": "public",
+            "name": "posts"
+          },
+          "Photo": {
+            "schema": "public",
+            "name": "photos"
+          }
+        },
+        "evidence": [
+          {
+            "kind": "query",
+            "source": "queries/reports.sql",
+            "text": "-- Comments on posts and photos: the polymorphic shape, twice. SELECT c.* FROM comments c JOIN posts p ON c.owner_id = p.id WHERE c.owner_type = ?",
+            "line": 11
+          },
+          {
+            "kind": "query",
+            "source": "queries/reports.sql",
+            "text": "SELECT c.* FROM comments c JOIN photos p ON c.owner_id = p.id WHERE c.owner_type = ?",
+            "line": 12
+          }
+        ]
+      }
+    ],
+    "undeclaredTables": [
+      {
+        "schema": "public",
+        "name": "audit_log"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "severity": "fail",
+      "code": "used_undeclared",
+      "sentence": "The join in queries/reports.sql:8 relies on public.audit_log.order_id → public.orders.id, which no constraint declares.",
+      "where": [
+        "queries/reports.sql:8"
+      ]
+    },
+    {
+      "severity": "warn",
+      "code": "declared_unused",
+      "sentence": "public.refunds.invoice_id → public.invoices.id is declared by refunds_invoice_id_fkey and used by no query that was read.",
+      "where": [
+        "refunds_invoice_id_fkey"
+      ]
+    },
+    {
+      "severity": "fail",
+      "code": "used_undeclared",
+      "sentence": "The join in queries/reports.sql:2 relies on public.orders.user_id → public.users.id, which no constraint declares.",
+      "where": [
+        "queries/reports.sql:2"
+      ]
+    },
+    {
+      "severity": "warn",
+      "code": "orphan_side",
+      "sentence": "Rows in public.orders may reference no public.users: user_id is nullable and no constraint checks it.",
+      "where": [
+        "queries/reports.sql:2"
+      ]
+    },
+    {
+      "severity": "fail",
+      "code": "undeclared_table",
+      "sentence": "public.audit_log is queried (public.orders) and no schema declares it.",
+      "where": [
+        "queries/reports.sql:8"
+      ]
+    }
+  ]
+}

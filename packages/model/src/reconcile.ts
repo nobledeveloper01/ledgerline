@@ -30,6 +30,12 @@ export interface Edge {
   readonly state: EdgeState;
   readonly cardinality: Cardinality;
   readonly evidence: readonly Evidence[];
+  /**
+   * How many distinct places support this edge as a query — sources and
+   * lines, not repeated runs of one statement. One join in one report is a
+   * weaker claim than the same join in forty files (ADR-0003 #3).
+   */
+  readonly support: number;
 }
 
 export interface PolymorphicEdge {
@@ -133,6 +139,7 @@ export function reconcile(schema: DeclaredSchema, claims: Claims): Model {
       state: b.declared && b.used ? 'declared_and_used' : b.declared ? 'declared_unused' : 'used_undeclared',
       cardinality: o.cardinality,
       evidence: b.evidence,
+      support: new Set(b.evidence.filter((v) => v.kind !== 'constraint').map((v) => `${v.source}:${v.line ?? ''}`)).size,
     });
   }
 
@@ -142,6 +149,7 @@ export function reconcile(schema: DeclaredSchema, claims: Claims): Model {
     const id = `${endKey(p.from)}~${columnKey(p.discriminator)}`;
     const targets = { ...(poly.get(id)?.targets ?? {}), ...p.targets };
     for (const t of Object.values(p.targets)) noteTable(t);
+    for (const c of [...p.from, p.discriminator]) noteTable(c);
     poly.set(id, { id, from: p.from, discriminator: p.discriminator, targets, evidence: [...(poly.get(id)?.evidence ?? []), p.evidence] });
   }
 

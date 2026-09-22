@@ -4,3 +4,4 @@
  */
 export { parseDdl, foldMigrations, SchemaBuilder } from './ddl.ts';
 export { DdlSyntaxError } from './pg.ts';
+export { claimsFromSql, maskLiterals, normalisePlaceholders, type QueryClaims, type QuerySource } from './queries.ts';

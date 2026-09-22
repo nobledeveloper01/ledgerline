@@ -5,6 +5,52 @@ The surprises are the point.
 
 ---
 
+## 2026-09-22, night — Phase 2: the queries, and fifteen more things
+
+**Did.** ADR-0003 (fifteen things, four refused) before any code. Then
+`claimsFromSql` over the PostgreSQL AST, the polymorphic pass, literal
+masking, placeholder rewriting; four query sources including a string lexer
+for eleven languages; support counts, the orphan-side and naming-drift
+findings in the model; the 200-world property test; a fixture with real
+migrations and real queries whose expected findings were read by hand. Phase
+2 cleared; Phase 3 opened.
+
+### What surprised us
+
+**A doc comment closed itself.** The lexer's own documentation listed the
+comment syntaxes it skips — including `/* */` — inside a `/** */` block, which
+ended the block early; the next backtick opened a template literal that ran
+forty lines until the lexer's own `` '`' ``. TypeScript reported an
+unterminated string on the wrong line. Found by bisecting with `tsc`; the
+comment now describes block comments in words.
+
+**The polymorphic shape lives across clauses.** The join is in `JOIN … ON`
+and the discriminator in `WHERE`, and the first pass looked for both inside
+one predicate. The pass runs once per statement over everything it saw.
+
+**`continue` swallowed the scalar subquery.** `a.x = (SELECT …)` fell into
+the literal-equality branch, which continued before the subquery check was
+reached. The test that had `users.id=orders.user_id` in its expected list
+was the one that noticed.
+
+**Statement locations sit before the comment.** libpg_query's location for a
+statement that follows `--` is the comment's first byte, so the line count
+skipped comments and whitespace as one leading run. And a template literal
+that starts with a newline puts its `SELECT` on the next line, which is the
+right line to report.
+
+**The CTE shadowed nothing.** `WITH recent AS (…) SELECT … FROM recent` was
+registering `recent` as a table because the CTE was in the same scope the
+lookup skipped. A derived name now shadows a table of the same name at any
+depth.
+
+### Still open
+
+- Phase 3: one static HTML file, ELK at build time, three edge treatments,
+  focus subgraphs in the URL hash, Mermaid export, the accessibility audit.
+- No command line yet; the model is reachable only through the packages and
+  the fixture emitter.
+
 ## 2026-09-22, evening — Phase 1: the declared side, and the one word that differed
 
 **Did.** `@ledgerline/parse` (libpg_query through `@pgsql/parser`, a

@@ -1,0 +1,3 @@
+SELECT * FROM orders o JOIN users u ON u.id = o.user_id WHERE u.email = 'ada@example.com';
+SELECT count(*) FROM orders WHERE total > 4200;
+SELECT * FROM invoices i JOIN orders o ON o.id = i.order_id;

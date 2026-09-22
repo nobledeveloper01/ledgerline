@@ -63,7 +63,7 @@ and a live PostgreSQL 16 agree byte for byte on every corpus, locally and on CI
 (`make live-check`, with a Postgres service). Drizzle sources move to Phase 5
 with the other ORMs; Prisma is in.
 
-## Phase 2 — Queries → model — **the technical core** · **current**
+## Phase 2 — Queries → model — **the technical core** · **cleared 2026-09-22**
 
 Reading what the application does.
 
@@ -80,6 +80,10 @@ Reading what the application does.
 - Reconciliation: the declared model and the used model become one, with every
   edge in one of three states — **declared and used**, **declared and never used**,
   **used and never declared**.
+- From ADR-0003: ghost tables (#1), confidence per edge from the count of
+  distinct queries (#3), cardinality only from uniqueness (#4), the orphan-side
+  finding (#5), naming drift (#8), and query-log privacy — every literal replaced
+  before anything is kept (#14).
 
 **Exit gate.** *A property test over generated schemas and query sets: no
 relationship that appears in a query is missing from the used model, and no
@@ -87,7 +91,19 @@ relationship in the used model lacks a line of evidence. On the fixture corpus, 
 "used and never declared" list matches what a person found by hand, with zero false
 edges.*
 
-## Phase 3 — The report
+**Cleared.** `claimsFromSql` walks the PostgreSQL AST — joins, `USING`,
+cross-table `WHERE`, `IN (SELECT …)`, scalar subqueries, `EXISTS`, `UPDATE …
+FROM`, `DELETE … USING`, `INSERT … SELECT`, CTEs and derived tables kept out of
+the table set — and the polymorphic shape by prefix. The property test runs 200
+generated worlds under a fixed seed. Sources: `.sql` directories, query logs
+(plain, `pg_stat_statements` JSON, CSV), and string literals lexed out of
+source files in eleven languages with each driver's placeholders rewritten;
+every literal masked before evidence is kept, and a test asserts a planted
+email appears nowhere. The `shop-with-queries` fixture holds the hand-checked
+list: two undeclared joins, one unused constraint, one ghost table, one
+polymorphic edge with two targets, zero false edges.
+
+## Phase 3 — The report · **current**
 
 The diagram people look at.
 
@@ -99,6 +115,8 @@ The diagram people look at.
 - Mermaid `erDiagram` export for READMEs; the declared subset only, because
   Mermaid cannot draw the three states.
 - Dark and light, 200% text, keyboard-navigable, contrast asserted in a test.
+- From ADR-0003: focus subgraphs at one or two hops, with the focus in the URL
+  hash so a link to a subgraph needs no server (#10).
 
 **Exit gate.** *The 200-table fixture renders in under two seconds and is
 navigable; every edge state is distinguishable without colour (a shape or a dash,
@@ -119,6 +137,11 @@ The reason the product exists.
   posted as a comment. Everything the Action does is also one CLI command.
 - Usage on the diagram when a query log is provided: reads and writes per table
   and column in the window; unused drawn faded.
+- From ADR-0003: dead columns (#2), schema archaeology from the migration files
+  (#7), the blast radius of a table (#9), the pull-request comment that is a
+  sentence first (#11), the baseline for adopting the gate on an old codebase
+  (#12), explaining a finding with the DDL that would close it (#13), and the
+  README badge whose number comes from the check (#15).
 
 **Exit gate.** *Run against three public open-source repositories with real
 histories, `ledgerline check` finds at least one true undeclared relationship in

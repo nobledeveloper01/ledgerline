@@ -64,7 +64,8 @@
             "line": 40,
             "text": "JOIN audit_log a ON a.order_id = orders.id"
           }
-        ]
+        ],
+        "support": 1
       },
       {
         "id": "public.invoices.order_id=public.orders.id",
@@ -91,7 +92,8 @@
             "source": "invoices_order_id_fkey",
             "text": "FOREIGN KEY (order_id) REFERENCES public.orders (id)"
           }
-        ]
+        ],
+        "support": 0
       }
     ],
     "polymorphic": [],
