@@ -40,6 +40,17 @@ Two limits, both deliberate:
   with no caller is a lie about the product rather than ordinary dead code
   that `tsc` and the linter already complain about.
 
+  Widening it to every package was tried and is wrong. `@ledgerline/parse`,
+  `@ledgerline/sources` and `@ledgerline/render` are libraries with published
+  surfaces: `parseDdl`, `svgFor`, `layoutModel`, `PALETTE` and thirty-five
+  others are called by their own tests and by whoever installs the package,
+  and by nothing else in this repository. Requiring a caller here would mean
+  thirty-nine allow-list entries all saying *this is the public API*, which
+  is a list that teaches nobody anything and that people would stop reading.
+  The model is different because it is not published for anyone: every rule
+  in it exists to be reached by this tool, so *nothing reaches it* is always
+  a finding.
+
 The same script also refuses a source file containing a **raw NUL byte**,
 because writing this gate turned one up: `schema.ts` held two, where the
 escape '\u0000' was meant, from a `join()` separator that had been
