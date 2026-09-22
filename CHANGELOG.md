@@ -6,9 +6,27 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
 
 ### Fixed
 
-Everything in this group was found by running `ledgerline check` on Mastodon —
-a real Rails application with 116 tables — which is Phase 4's exit gate being
-done rather than described.
+Everything in this group was found by running `ledgerline check` on real
+repositories — Mastodon (Rails, 116 tables) and Outline (Sequelize, 41) —
+which is Phase 4's exit gate being done rather than described.
+
+- **A CTE in front of an UPDATE or a DELETE was read as a table.** `WITH
+  lockable AS (…) UPDATE documents …` reported `lockable` as a table the
+  queries use and no schema declares: a failing finding about a name that
+  exists only inside that one statement. `WITH` was read for `SELECT` and
+  nowhere else.
+- **An unqualified column in a subquery was resolved against the wrong
+  query.** `DELETE FROM stars WHERE NOT EXISTS (SELECT NULL FROM documents doc
+  WHERE doc.id = "documentId")` reads `documentId` from the outer `stars`;
+  resolving it against the inner scope invented a `documents.documentId` and
+  a self-join that does not exist. An unqualified column now walks out through
+  the enclosing scopes, which is what a correlated reference is.
+- **Migration directories are no longer read as queries.** They are the
+  schema; their DML is history. Outline's 2023 migration mentions
+  `collection_users`, a table that was real then and has since been renamed,
+  and the tool failed the build over it. The `ignore` setting — which was
+  read from the config file and never used — now works too, and the migration
+  directories join it.
 
 - **A check that read no schema now fails.** It used to print *No findings.
   Every relationship the queries rely on is declared.* and exit 0 for a
@@ -85,9 +103,19 @@ done rather than described.
   has no rule for — a partition clause, a generated column, a fulltext or
   spatial index, a trigger or a routine — is **skipped and counted**, never
   half-read. A diagram that quietly dropped a table would look complete.
-- **Five more places a schema can come from**, for repositories that contain
+- **sequelize-typescript models as a schema source.** A Sequelize repository
+  has no file that is the schema: its migrations are *JavaScript* calling
+  `queryInterface.createTable` and its models are decorated TypeScript
+  classes. Outline was unreadable to this tool for exactly that reason, and
+  is now read as 41 tables and 128 foreign keys. `@Table({ tableName })` names
+  the table, a class no `@Table` decorates is a base or a helper and not a
+  table, and a base class lends its columns to everything that extends it —
+  which is where the primary key lives in every Sequelize repository worth
+  reading.
+- **Six more places a schema can come from**, for repositories that contain
   no SQL at all: Rails `db/schema.rb`, Django `models.py`, SQLAlchemy models,
-  TypeORM entities and an EF Core `…ModelSnapshot.cs`. All are read as text
+  TypeORM entities, sequelize-typescript models and an EF Core
+  `…ModelSnapshot.cs`. All are read as text
   and **never executed** (ADR-0005): running a repository's code to draw its
   diagram is a liability, not a feature. Each is found by looking, so no
   configuration is needed — a `models.py` is read as Django's or SQLAlchemy's

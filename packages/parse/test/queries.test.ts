@@ -107,3 +107,29 @@ test('other drivers’ placeholders are rewritten so the statement parses, and a
   assert.equal(c.relationships.length, 1);
   assert.equal(c.unparsed, 1);
 });
+
+test('a CTE in front of an UPDATE or a DELETE is a name, not a table', async () => {
+  const schema = await parseDdl('CREATE TABLE documents (id uuid PRIMARY KEY, "popularityScore" double precision);', 'ddl.sql');
+  // Outline's real statement, shortened: `lockable` exists only inside it.
+  const sql = `
+    WITH lockable AS (SELECT id FROM documents WHERE id = $1 FOR UPDATE SKIP LOCKED)
+    UPDATE documents AS d SET "popularityScore" = 1
+    WHERE d.id IN (SELECT id FROM lockable)
+  `;
+  const c = await claimsFromSql(sql, { source: 'task.ts', line: 1 }, schema);
+  assert.equal(c.unparsed, 0);
+  const named = new Set(c.relationships.flatMap((r) => [...r.from, ...r.to]).map((x) => x.name));
+  assert.ok(!named.has('lockable'), 'a CTE name is not a table the queries use');
+  assert.ok(!c.mentions.some((m) => m.includes('lockable')), 'and it is not something the window touched either');
+});
+
+test('an unqualified column in a subquery belongs to the outer query when the inner one has no such column', async () => {
+  const schema = await parseDdl('CREATE TABLE stars (id uuid PRIMARY KEY, "documentId" uuid); CREATE TABLE documents (id uuid PRIMARY KEY);', 'ddl.sql');
+  // Outline's real statement: `"documentId"` is stars', not documents'.
+  const sql = 'DELETE FROM stars WHERE NOT EXISTS (SELECT NULL FROM documents doc WHERE doc.id = "documentId")';
+  const c = await claimsFromSql(sql, { source: 'migration.js', line: 1 }, schema);
+  assert.equal(c.relationships.length, 1);
+  const r = c.relationships[0]!;
+  const ends = [...r.from, ...r.to].map((x) => `${x.name}.${x.column}`).sort();
+  assert.deepEqual(ends, ['documents.id', 'stars.documentId'], 'resolving it against the inner scope invented documents.documentId and a self-join');
+});

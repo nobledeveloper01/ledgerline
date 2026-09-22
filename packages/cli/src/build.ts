@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { EMPTY_SCHEMA, reconcile, type Claims, type DeclaredSchema, type Model } from '@ledgerline/model';
-import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parseEfCoreSnapshot, parsePrisma, parseRailsSchema, parseSqlAlchemyModels, parseTypeOrmEntities, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
+import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parseEfCoreSnapshot, parsePrisma, parseRailsSchema, parseSequelizeModels, parseSqlAlchemyModels, parseTypeOrmEntities, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
 import { readFileSync } from 'node:fs';
 
 import type { Resolved } from './config.ts';
@@ -89,6 +89,16 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
       names.push(`${files.length} TypeORM ${files.length === 1 ? 'entity' : 'entities'}`);
     }
   }
+  if (parts.length === 0 && config.sequelize.length > 0) {
+    // Every model file at once: a base class and a foreign key's target both
+    // live in other files.
+    const files = config.sequelize.filter((f) => existsSync(join(config.root, f))).map((f) => ({ path: f, text: readFileSync(join(config.root, f), 'utf8') }));
+    const read = parseSequelizeModels(files);
+    if (read.schema.tables.length > 0) {
+      parts.push(read.schema);
+      names.push(`${files.length} Sequelize model${files.length === 1 ? '' : 's'}`);
+    }
+  }
   if (parts.length === 0) {
     for (const models of config.django) {
       const full = join(config.root, models);
@@ -115,10 +125,14 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
 export async function buildModel(config: Resolved, options: BuildOptions = {}): Promise<BuildReport> {
   const { schema, from } = await declaredSchema(config, options);
   let gathered = NONE;
+  // A migration is not a query the application runs, so the directories that
+  // hold the schema are never read for claims. `ignore` from the config joins
+  // them.
+  const ignore = [...config.ignore, ...config.migrations];
   for (const q of config.queries) {
     const full = join(config.root, q);
     if (!existsSync(full)) continue;
-    gathered = join2(gathered, q.endsWith('.sql') ? await claimsFromSqlFiles(full, schema, config.root, config.dialect) : await claimsFromRepository(full, schema, config.dialect));
+    gathered = join2(gathered, q.endsWith('.sql') ? await claimsFromSqlFiles(full, schema, config.root, config.dialect, ignore) : await claimsFromRepository(full, schema, config.dialect, ignore));
   }
   for (const log of config.logs) {
     const full = join(config.root, log);

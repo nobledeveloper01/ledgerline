@@ -5,6 +5,66 @@ The surprises are the point.
 
 ---
 
+## 2026-09-23, later still — the check meets a real repository
+
+**Did.** Ran `ledgerline check` against Mastodon: a Rails application, 116
+tables, 613 source files. Not the Phase 4 gate — that needs three repositories
+and a person reading every finding — but the first half of the work, and it
+found six bugs in an afternoon that the whole fixture corpus had never
+touched.
+
+### What surprised us
+
+**The very first run went green on a repository it could not read.** *schema
+from nothing · 0 statements in 0 sources* followed by *No findings. Every
+relationship the queries rely on is declared.* and exit 0. That is the worst
+failure this tool is capable of: put it in a pipeline, move the migrations,
+and the build passes for ever. A check that reads no schema now fails and
+prints where it looked. It is embarrassing that the tool whose whole thesis is
+*a claim is only worth having if something checks it* shipped a check that
+claimed everything was fine after checking nothing.
+
+**Rails puts Ruby in `db/migrate`.** So the directory existed, matched the
+list of places migrations live, and yielded not one table — while `db/schema.rb`
+sat beside it holding the entire schema. The fallback from migrations to an
+ORM file was written to turn on *existence*, and had to turn on *emptiness*.
+The bug was one line and was invisible without a real Rails repository, which
+is exactly the argument for this gate being a real repository.
+
+**148 true warnings, none of them worth reading.** Every foreign key in
+Mastodon came back as *used by no query that was read* — true, and worthless,
+because an ActiveRecord application speaks to its database through the ORM and
+leaves almost no SQL to find. Absence of a query is not evidence of an unused
+relationship when the sample is empty. `declared_unused` is now claimed only
+about a table some query actually named, and the size of the blind spot is
+stated once: *90 of 116 tables were named by no query that was read.* That is
+the honest sentence, and it is one line instead of a hundred and forty-eight.
+
+The first attempt at the rule was wrong in an instructive way: it passed an
+edge if *either* end had been queried, so `accounts` — read everywhere —
+vouched for all forty tables pointing at it, and the count fell from 148 to
+130. The claim is about the side that carries the key.
+
+**And 1947 statements the parser refused were English.** The test for *is this
+string a query* was its first word, and `"delete"`, `"Delete & re-draft"` and
+`"Select your favourite fruit or not. Up to you."` all begin with a SQL verb.
+Testing the shape instead — a SELECT with a FROM, an UPDATE with a SET —
+took it from 1947 to 2, and the files reported as containing SQL from 613 to
+36. Both statements still unread were queries with Ruby's `#{…}` in them,
+which is a placeholder like every other placeholder; one of them now parses
+and the other interpolates its own FROM clause and is beyond honest reading.
+
+**A dangling symlink ended the run.** Exit 70, nothing read, on one broken
+link in six hundred files. A repository does not hold still: a build deletes
+things, a link points nowhere, a directory is not readable. All three are
+skipped now.
+
+### Still open
+
+- The gate itself: three repositories, every finding read by a person. One is
+  run; the findings are recorded; nobody has confirmed them yet. That is still
+  the honest state and it is still not claimed.
+
 ## 2026-09-23, later — Phase 5: MySQL, and two ORMs read without running them
 
 **Did.** The MySQL rewrite (ADR-0004) grew `MODIFY`/`CHANGE COLUMN` and the

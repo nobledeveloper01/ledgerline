@@ -85,6 +85,25 @@ function walk(dir: string, keep: (name: string) => boolean, skip: RegExp = /(^|[
   return out;
 }
 
+/**
+ * Paths never descended into, on top of the built-in list: whatever the
+ * configuration named, and — always — the migration directories, because a
+ * migration is not a query the application runs.
+ *
+ * Reading Outline's `server/migrations` as a query source produced failing
+ * findings about `collection_users`, a table that was real when that
+ * migration was written and has since been renamed. The finding was true
+ * about 2023 and useless about today. A migration's DDL is the schema; its
+ * DML is history.
+ */
+export function skipPattern(ignore: readonly string[]): RegExp {
+  const escaped = ignore
+    .filter((p) => p.length > 0)
+    .map((p) => p.replace(/^\.\//, '').replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const extra = escaped.length === 0 ? '' : `|(^|[\\\\/])(${escaped.join('|')})([\\\\/]|$)`;
+  return new RegExp(`(^|[\\\\/])(node_modules|\\.git|dist|build|vendor|\\.next|target)([\\\\/]|$)${extra}`);
+}
+
 /** A file that vanished or cannot be read is skipped, for the reason `walk` gives. */
 function readOrSkip(file: string): string | null {
   try {
@@ -95,9 +114,9 @@ function readOrSkip(file: string): string | null {
 }
 
 /** `.sql` files under `dir`, each statement with its line. */
-export async function claimsFromSqlFiles(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres'): Promise<Gathered> {
+export async function claimsFromSqlFiles(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres', ignore: readonly string[] = []): Promise<Gathered> {
   let out = NONE;
-  for (const file of walk(dir, (n) => n.toLowerCase().endsWith('.sql'))) {
+  for (const file of walk(dir, (n) => n.toLowerCase().endsWith('.sql'), skipPattern(ignore))) {
     const text = readOrSkip(file);
     if (text === null) continue;
     out = merge(out, await claimsFromSql(text, { source: relative(root, file), line: 1 }, schema, dialect));
@@ -251,9 +270,9 @@ export function stringLiterals(src: string): Literal[] {
 }
 
 /** Queries found as string literals in source files under `dir`. */
-export async function claimsFromSource(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres'): Promise<Gathered> {
+export async function claimsFromSource(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres', ignore: readonly string[] = []): Promise<Gathered> {
   let out = NONE;
-  for (const file of walk(dir, (nm) => SOURCE_EXT.has(nm.slice(nm.lastIndexOf('.')).toLowerCase()))) {
+  for (const file of walk(dir, (nm) => SOURCE_EXT.has(nm.slice(nm.lastIndexOf('.')).toLowerCase()), skipPattern(ignore))) {
     const src = readOrSkip(file);
     if (src === null) continue;
     let any = false;
@@ -269,9 +288,9 @@ export async function claimsFromSource(dir: string, schema: DeclaredSchema | nul
 }
 
 /** Everything under a repository: `.sql` files and source literals together. */
-export async function claimsFromRepository(dir: string, schema: DeclaredSchema | null = null, dialect: QueryDialect = 'postgres'): Promise<Gathered> {
-  const files = await claimsFromSqlFiles(dir, schema, dir, dialect);
-  const code = await claimsFromSource(dir, schema, dir, dialect);
+export async function claimsFromRepository(dir: string, schema: DeclaredSchema | null = null, dialect: QueryDialect = 'postgres', ignore: readonly string[] = []): Promise<Gathered> {
+  const files = await claimsFromSqlFiles(dir, schema, dir, dialect, ignore);
+  const code = await claimsFromSource(dir, schema, dir, dialect, ignore);
   return {
     relationships: [...files.relationships, ...code.relationships],
     polymorphic: [...files.polymorphic, ...code.polymorphic],

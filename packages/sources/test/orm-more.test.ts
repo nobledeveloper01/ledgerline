@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { parseEfCoreSnapshot, parseSqlAlchemyModels, parseTypeOrmEntities, snakeCase } from '../src/index.ts';
+import { baseClassOf, parseEfCoreSnapshot, parseSequelizeModels, parseSqlAlchemyModels, parseTypeOrmEntities, snakeCase } from '../src/index.ts';
 
 const here = join(import.meta.dirname, 'orm');
 const read = (...parts: string[]): string => readFileSync(join(here, ...parts), 'utf8');
@@ -110,4 +110,52 @@ test('an EF Core model snapshot reads back as the tables the migration would cre
   // The other one points at an entity this snapshot never declares.
   assert.equal(unread.length, 1);
   assert.match(unread[0]!.reason, /relationship to Warehouse, which this snapshot does not declare/);
+});
+
+test('sequelize-typescript models read back as the tables Sequelize would create', () => {
+  const dir = join(here, 'sequelize');
+  const files = ['Base.ts', 'User.ts', 'Star.ts'].map((f) => ({ path: join(dir, f), text: read('sequelize', f) }));
+  const { schema, unread } = parseSequelizeModels(files);
+
+  // Only a @Table class is a table: `Model` and `IdModel` are bases.
+  assert.deepEqual(schema.tables.map((t) => t.name), ['stars', 'users']);
+
+  const users = schema.tables.find((t) => t.name === 'users')!;
+  // The base class's columns come first, and `field:` renames.
+  assert.deepEqual(users.columns, [
+    { name: 'id', type: 'uuid', nullable: false },
+    { name: 'createdAt', type: 'timestamp with time zone', nullable: false },
+    { name: 'updatedAt', type: 'timestamp with time zone', nullable: false },
+    { name: 'email', type: 'character varying(254)', nullable: false },
+    { name: 'is_admin', type: 'boolean', nullable: false },
+  ]);
+  assert.deepEqual(users.primaryKey, ['id'], 'the primary key is inherited, and losing it would be a schema that looks right');
+  assert.deepEqual(users.uniques, [['email']]);
+  assert.ok(!users.columns.some((c) => c.name === 'label' || c.name === 'name'), 'a getter body is not a column');
+
+  const stars = schema.tables.find((t) => t.name === 'stars')!;
+  assert.ok(stars.columns.some((c) => c.name === 'userId' && !c.nullable));
+  assert.ok(stars.columns.some((c) => c.name === 'widgetId' && c.nullable), '`| null` is allowNull');
+  assert.ok(!stars.columns.some((c) => c.name === 'user'), '@BelongsTo with no @Column is navigation');
+
+  assert.deepEqual(
+    schema.foreignKeys.map((fk) => `${fk.from[0]!.name}.${fk.from[0]!.column}→${fk.to[0]!.name}.${fk.to[0]!.column}`),
+    ['stars.userId→users.id'],
+  );
+  // What it could not resolve is named, not invented — and each fact once:
+  // the library's own base class is one fact about the repository, not one
+  // per model that inherits through it.
+  assert.deepEqual(unread.map((u) => u.reason).sort(), [
+    'Model extends SequelizeModel, which is not among the files read, so its columns are missing',
+    'a @ForeignKey to Widget, which is not a @Table model among the files read',
+  ]);
+});
+
+test('the base class is read past the type parameters, not from the first `extends` in sight', () => {
+  // `class X<T extends object = any> extends Base<T>` has two `extends`, and
+  // taking the first gave every Outline model the base class `object` — which
+  // silently cost all 54 tables their primary key.
+  assert.equal(baseClassOf('class IdModel<\n  T extends object = any,\n> extends Model<T> '), 'Model');
+  assert.equal(baseClassOf('class Plain extends Base '), 'Base');
+  assert.equal(baseClassOf('class Alone '), null);
 });

@@ -127,14 +127,33 @@ class Walker {
     }
     if (fields.length === 1) {
       const column = fields[0]!;
-      // Unqualified: the one table in scope that has it, from the schema; else the only table in scope; else give up.
-      const tables = [...scope.names.values()].filter((t): t is TableRef => t !== null);
-      if (this.schema) {
-        const having = tables.filter((t) => this.columnsOf(t)?.includes(column));
-        if (having.length === 1) return { table: having[0]!, column };
-        if (having.length > 1) return null;
+      /*
+       * Unqualified, and possibly correlated.
+       *
+       * The one table *in this scope* that has the column, from the schema —
+       * and when no table here has it, the enclosing scopes, because that is
+       * what a correlated reference is. Outline's
+       * `DELETE FROM stars WHERE NOT EXISTS (SELECT NULL FROM documents doc
+       * WHERE doc.id = "documentId")` reads `documentId` from the outer
+       * `stars`; resolving it against the inner scope alone invented a
+       * `documents.documentId` and a self-join that does not exist.
+       */
+      for (let s: Scope | null = scope; s !== null; s = s.parent) {
+        const tables = [...s.names.values()].filter((t): t is TableRef => t !== null);
+        if (tables.length === 0) continue;
+        if (this.schema) {
+          const known = tables.filter((t) => this.columnsOf(t) !== null);
+          if (known.length > 0) {
+            const having = known.filter((t) => this.columnsOf(t)?.includes(column));
+            if (having.length === 1) return { table: having[0]!, column };
+            if (having.length > 1) return null; // ambiguous here; guessing would invent an edge
+            if (known.length < tables.length) continue; // some table here is unknown; keep looking out
+            continue; // nothing here has it: it belongs to an enclosing query
+          }
+        }
+        if (tables.length === 1 && s.names.size === 1) return { table: tables[0]!, column };
+        return null;
       }
-      if (tables.length === 1 && scope.names.size === 1) return { table: tables[0]!, column };
       return null;
     }
     return null;
@@ -379,11 +398,30 @@ class Walker {
     this.polymorphicPass();
   }
 
+  /**
+   * `WITH x AS (…)` in front of an UPDATE, DELETE or INSERT.
+   *
+   * A CTE name shadows a table of the same name, and a name that shadows
+   * nothing is still not a table. This was read for SELECT and for nothing
+   * else, so `WITH lockable AS (…) UPDATE documents …` in Outline reported
+   * `lockable` as a table the queries use and no schema declares — a failing
+   * finding about a name that exists only inside that one statement.
+   */
+  private withClause(scope: Scope, clause: { ctes: Node[] } | undefined): void {
+    for (const cte of clause?.ctes ?? []) {
+      const c = cte['CommonTableExpr'] as { ctename: string; ctequery: Node };
+      scope.names.set(c.ctename, null);
+      this.select(scope, c.ctequery);
+    }
+  }
+
   private walk(stmt: Node): void {
     if (stmt['SelectStmt']) this.select({ names: new Map(), parent: null }, stmt);
     else if (stmt['InsertStmt']) {
-      const ins = stmt['InsertStmt'] as { relation?: Node; cols?: Node[]; selectStmt?: Node };
-      if (ins.selectStmt) this.select({ names: new Map(), parent: null }, ins.selectStmt);
+      const ins = stmt['InsertStmt'] as { relation?: Node; cols?: Node[]; selectStmt?: Node; withClause?: { ctes: Node[] } };
+      const outer: Scope = { names: new Map(), parent: null };
+      this.withClause(outer, ins.withClause);
+      if (ins.selectStmt) this.select(outer, ins.selectStmt);
       // An INSERT writes the columns it names; a write is a use.
       if (ins.relation) {
         const scope: Scope = { names: new Map(), parent: null };
@@ -395,8 +433,9 @@ class Walker {
         }
       }
     } else if (stmt['UpdateStmt'] || stmt['DeleteStmt']) {
-      const u = (stmt['UpdateStmt'] ?? stmt['DeleteStmt']) as { relation: Node; fromClause?: Node[]; usingClause?: Node[]; whereClause?: Node };
+      const u = (stmt['UpdateStmt'] ?? stmt['DeleteStmt']) as { relation: Node; fromClause?: Node[]; usingClause?: Node[]; whereClause?: Node; withClause?: { ctes: Node[] } };
       const scope: Scope = { names: new Map(), parent: null };
+      this.withClause(scope, u.withClause);
       this.fromItem(scope, { RangeVar: u.relation });
       for (const f of [...(u.fromClause ?? []), ...(u.usingClause ?? [])]) this.fromItem(scope, f);
       if (u.whereClause) this.conjuncts(scope, u.whereClause);

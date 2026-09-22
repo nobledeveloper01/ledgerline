@@ -52,6 +52,8 @@ export interface Config {
   readonly sqlalchemy?: readonly string[];
   /** TypeORM entity files. Found by looking when absent — `*.entity.ts`. */
   readonly typeorm?: readonly string[];
+  /** sequelize-typescript model files. Found by looking when absent — `.ts` under a `models/` directory that mentions Sequelize. */
+  readonly sequelize?: readonly string[];
   /** An EF Core `…ModelSnapshot.cs`. Found by looking when absent. */
   readonly efcore?: string;
   /** Where the queries are: directories of `.sql` and of source files. The whole repository when absent. */
@@ -76,6 +78,7 @@ export interface Resolved {
   readonly django: readonly string[];
   readonly sqlalchemy: readonly string[];
   readonly typeorm: readonly string[];
+  readonly sequelize: readonly string[];
   readonly efcore: string | null;
   readonly queries: readonly string[];
   readonly logs: readonly string[];
@@ -126,6 +129,23 @@ export function ormKindOf(text: string): 'django' | 'sqlalchemy' | null {
   return null;
 }
 
+/**
+ * A Sequelize repository has no one file that is the schema, so the models
+ * are it: `.ts` under a `models/` directory, filtered by what the file says.
+ * `@Table` belongs to `sequelize-typescript` and `@Entity` to TypeORM, so a
+ * directory of models is never mistaken for the other kind.
+ */
+export function findSequelizeModels(root: string): string[] {
+  return findFiles(root, (name, dir) => name.endsWith('.ts') && !name.endsWith('.test.ts') && /(^|\/)models?(\/|$)/.test(dir), 6).filter((f) => {
+    try {
+      const text = readFileSync(join(root, f), 'utf8');
+      return /sequelize-typescript|@Table\s*\(/.test(text) && !/@Entity\s*\(/.test(text);
+    } catch {
+      return false;
+    }
+  });
+}
+
 export function readConfig(root: string): Config {
   const path = join(root, CONFIG_FILE);
   if (!existsSync(path)) return {};
@@ -152,6 +172,7 @@ export function resolveConfig(root: string, config: Config = readConfig(root)): 
     django: config.django ?? pythonModels.filter((f) => kinds.get(f) === 'django'),
     sqlalchemy: config.sqlalchemy ?? pythonModels.filter((f) => kinds.get(f) === 'sqlalchemy'),
     typeorm: config.typeorm ?? findFiles(root, (name) => name.endsWith('.entity.ts')),
+    sequelize: config.sequelize ?? findSequelizeModels(root),
     efcore: config.efcore ?? findFiles(root, (name, dir) => name.endsWith('ModelSnapshot.cs') && /(^|\/)Migrations$/i.test(dir))[0] ?? null,
     queries: config.queries ?? ['.'],
     logs: config.logs ?? [],

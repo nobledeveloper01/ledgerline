@@ -85,7 +85,7 @@ the same seed, written the way MySQL writes it, asserted to reconcile to the
 same tables, columns, nullability, keys and all 375 foreign keys.
 
 **Rails `db/schema.rb`, Django `models.py`, SQLAlchemy models, TypeORM
-entities and EF Core model snapshots** are read as text and **never executed**
+entities, sequelize-typescript models and EF Core model snapshots** are read as text and **never executed**
 (ADR-0005), for the repositories that contain no SQL at all. Where a
 convention cannot be reproduced — a Rails plural the inflector does not know,
 a relation to a class in a file the reader never saw — the line is reported as
@@ -105,7 +105,7 @@ npx ledgerline check
 three of them 200-world properties · 6 fixtures diffed on every build, two of
 them 200 tables — the same schema in PostgreSQL and in MySQL · 10 gates, four
 of them — the boundary, reachability, the fixtures and the tool itself — broken
-on purpose every run · 6 ADRs · 10 commands · 7 places a schema can come
+on purpose every run · 6 ADRs · 10 commands · 8 places a schema can come
 from, and none of them is run.
 
 | | |
