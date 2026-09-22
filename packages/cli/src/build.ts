@@ -26,6 +26,8 @@ export interface BuildReport {
   readonly sources: number;
   /** What the queries named, for `usage` (ADR-0003 #2). Stars are not expanded here. */
   readonly mentions: readonly string[];
+  /** Of the refusals, how many were in backticks; see `QueryClaims.refusedBackticked`. */
+  readonly refusedBackticked: number;
 }
 
 export interface BuildOptions {
@@ -33,7 +35,7 @@ export interface BuildOptions {
   readonly databaseUrl?: string;
 }
 
-const NONE: Gathered = { relationships: [], polymorphic: [], parsed: 0, unparsed: 0, sources: 0, mentions: [] };
+const NONE: Gathered = { relationships: [], polymorphic: [], parsed: 0, unparsed: 0, sources: 0, mentions: [], refusedBackticked: 0 };
 
 function join2(a: Gathered, b: Gathered): Gathered {
   return {
@@ -43,6 +45,7 @@ function join2(a: Gathered, b: Gathered): Gathered {
     unparsed: a.unparsed + b.unparsed,
     sources: a.sources + b.sources,
     mentions: [...new Set([...a.mentions, ...b.mentions])],
+    refusedBackticked: a.refusedBackticked + b.refusedBackticked,
   };
 }
 
@@ -135,7 +138,7 @@ export async function buildModel(config: Resolved, options: BuildOptions = {}): 
   for (const q of config.queries) {
     const full = join(config.root, q);
     if (!existsSync(full)) continue;
-    gathered = join2(gathered, q.endsWith('.sql') ? await claimsFromSqlFiles(full, schema, config.root, config.dialect, ignore) : await claimsFromRepository(full, schema, config.dialect, ignore));
+    gathered = join2(gathered, q.endsWith('.sql') ? await claimsFromSqlFiles(full, schema, config.root, config.dialectOf, ignore) : await claimsFromRepository(full, schema, config.dialectOf, ignore, config.root));
   }
   for (const log of config.logs) {
     const full = join(config.root, log);
@@ -151,5 +154,6 @@ export async function buildModel(config: Resolved, options: BuildOptions = {}): 
     statementsUnparsed: gathered.unparsed,
     sources: gathered.sources,
     mentions: gathered.mentions,
+    refusedBackticked: gathered.refusedBackticked,
   };
 }

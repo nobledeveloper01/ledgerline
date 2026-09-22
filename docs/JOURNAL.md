@@ -131,11 +131,48 @@ column, it reported the line as unread, exactly as ADR-0005 says. The safety
 rule held and the inflector was still wrong, which is the whole argument for
 having both.
 
+### And then memos, which is what the product is for
+
+Three ORM-first repositories could not meet a gate that asks for a query
+disagreeing with a constraint, so the fourth was chosen for the opposite
+property: a Go application that writes its own SQL. memos has 187 readable
+statements across 64 files and **exactly one `FOREIGN KEY` in its entire
+schema**.
+
+Four failing findings, each a real join in real source, each verified by
+opening the file the tool named:
+
+- `attachment.memo_id → memo.id` — `LEFT JOIN memo ON attachment.memo_id =
+  memo.id`, and the column is `INTEGER DEFAULT NULL` with nothing checking it.
+- `memo.space_id → space.id` — from `LEFT JOIN space AS attachment_space ON
+  memo.space_id = attachment_space.id`, alias and all.
+- `space_member.space_id → space.id` and `space_member.user_id → user.id` —
+  a composite-key join table with no constraints at all.
+
+That is the product doing the thing it was written to do, on somebody else's
+code, with the file and line in the sentence. It is one repository and the
+gate asks for three, so nothing is claimed.
+
+**memos also said something about the tool's shape.** *187 not parsed* was
+mostly MySQL: memos keeps `store/db/postgres`, `store/db/mysql` and
+`store/db/sqlite` beside each other, and `dialect` was one setting for a whole
+repository. That was an assumption nobody had noticed making. It takes a path
+map now — and the summary says *120 not parsed (68 of them in backticks — set
+"dialect" for those paths)*, because a bare count is not a thing you can act
+on.
+
+And `"delete member from nested name"` was still being handed to the parser,
+four hours after the *looks like SQL* test was supposedly fixed, because the
+test allowed anything between `DELETE` and `FROM`. `DELETE FROM` is the only
+legal spelling. Every heuristic gets one more counterexample than you expect.
+
 ### Still open
 
-- The gate. Three repositories are run, every finding is checked, and the
-  evidence is in `docs/GATE-PHASE-4.md`. What is left is a person reading it
-  and deciding what the gate should ask for. It is still not claimed.
+- The gate. Four repositories are run, every finding is checked, and the
+  evidence is in `docs/GATE-PHASE-4.md`. One of the four meets the gate's
+  actual criterion; it asks for three. What is left is finding two more
+  applications that write their own SQL — a search, not a script — and a
+  person reading the findings. It is still not claimed.
 
 ## 2026-09-23, later — Phase 5: MySQL, and two ORMs read without running them
 

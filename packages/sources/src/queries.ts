@@ -27,6 +27,20 @@ import { join, relative } from 'node:path';
 import type { Claims, DeclaredSchema } from '@ledgerline/model';
 import { claimsFromSql, type QueryClaims, type QueryDialect } from '@ledgerline/parse';
 
+/**
+ * Which dialect a file's SQL is in.
+ *
+ * One repository can hold more than one. memos keeps `store/db/postgres`,
+ * `store/db/mysql` and `store/db/sqlite` side by side, and reading all three
+ * as PostgreSQL left 188 statements unread — most of them MySQL, in backticks.
+ * A single setting for a whole repository was an assumption, not a fact.
+ */
+export type DialectOf = QueryDialect | ((path: string) => QueryDialect);
+
+function dialectFor(d: DialectOf, path: string): QueryDialect {
+  return typeof d === 'function' ? d(path) : d;
+}
+
 export interface Gathered extends Claims {
   readonly parsed: number;
   readonly unparsed: number;
@@ -34,9 +48,11 @@ export interface Gathered extends Claims {
   readonly sources: number;
   /** Every `schema.table.column` (and `schema.table.*`) the window named; see `QueryClaims.mentions`. */
   readonly mentions: readonly string[];
+  /** Of the refusals, how many were written in backticks — the shape of MySQL. See `QueryClaims.refusedBackticked`. */
+  readonly refusedBackticked: number;
 }
 
-const NONE: Gathered = { relationships: [], polymorphic: [], parsed: 0, unparsed: 0, sources: 0, mentions: [] };
+const NONE: Gathered = { relationships: [], polymorphic: [], parsed: 0, unparsed: 0, sources: 0, mentions: [], refusedBackticked: 0 };
 
 function merge(a: Gathered, b: QueryClaims): Gathered {
   return {
@@ -46,6 +62,7 @@ function merge(a: Gathered, b: QueryClaims): Gathered {
     unparsed: a.unparsed + b.unparsed,
     sources: a.sources + 1,
     mentions: [...new Set([...a.mentions, ...b.mentions])],
+    refusedBackticked: a.refusedBackticked + b.refusedBackticked,
   };
 }
 
@@ -114,12 +131,13 @@ function readOrSkip(file: string): string | null {
 }
 
 /** `.sql` files under `dir`, each statement with its line. */
-export async function claimsFromSqlFiles(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres', ignore: readonly string[] = []): Promise<Gathered> {
+export async function claimsFromSqlFiles(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: DialectOf = 'postgres', ignore: readonly string[] = []): Promise<Gathered> {
   let out = NONE;
   for (const file of walk(dir, (n) => n.toLowerCase().endsWith('.sql'), skipPattern(ignore))) {
     const text = readOrSkip(file);
     if (text === null) continue;
-    out = merge(out, await claimsFromSql(text, { source: relative(root, file), line: 1 }, schema, dialect));
+    const at = relative(root, file);
+    out = merge(out, await claimsFromSql(text, { source: at, line: 1 }, schema, dialectFor(dialect, at)));
   }
   return out;
 }
@@ -188,10 +206,15 @@ const SOURCE_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs', '.jsx', '.py',
  * tool is broken.
  *
  * So the shape, not the verb: a SELECT with a FROM, an INSERT INTO, an UPDATE
- * with a SET, a DELETE FROM, a WITH that opens a subquery. A `SELECT 1`
- * health check no longer qualifies, which costs nothing — it names no table.
+ * with a SET, a DELETE *immediately* followed by FROM, a WITH that opens a
+ * subquery. A `SELECT 1` health check no longer qualifies, which costs
+ * nothing — it names no table.
+ *
+ * `DELETE` is the one that has to be tight rather than merely shaped:
+ * `DELETE FROM` is the only legal spelling, and allowing anything between the
+ * two words let `"delete member from nested name"` through on memos.
  */
-const LOOKS_LIKE_SQL = /^\s*(?:SELECT\b[\s\S]*\bFROM\b|INSERT\s+INTO\b|UPDATE\b[\s\S]*\bSET\b|DELETE\b[\s\S]*\bFROM\b|WITH\b[\s\S]*\bAS\s*\()/i;
+const LOOKS_LIKE_SQL = /^\s*(?:SELECT\b[\s\S]*\bFROM\b|INSERT\s+INTO\b|UPDATE\b[\s\S]*\bSET\b|DELETE\s+(?:FROM|ONLY)\b|WITH\b[\s\S]*\bAS\s*\()/i;
 
 interface Literal {
   readonly text: string;
@@ -270,7 +293,7 @@ export function stringLiterals(src: string): Literal[] {
 }
 
 /** Queries found as string literals in source files under `dir`. */
-export async function claimsFromSource(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres', ignore: readonly string[] = []): Promise<Gathered> {
+export async function claimsFromSource(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: DialectOf = 'postgres', ignore: readonly string[] = []): Promise<Gathered> {
   let out = NONE;
   for (const file of walk(dir, (nm) => SOURCE_EXT.has(nm.slice(nm.lastIndexOf('.')).toLowerCase()), skipPattern(ignore))) {
     const src = readOrSkip(file);
@@ -279,7 +302,8 @@ export async function claimsFromSource(dir: string, schema: DeclaredSchema | nul
     for (const lit of stringLiterals(src)) {
       if (!LOOKS_LIKE_SQL.test(lit.text)) continue;
       any = true;
-      const c = await claimsFromSql(lit.text, { source: relative(root, file), line: lit.line }, schema, dialect);
+      const at = relative(root, file);
+      const c = await claimsFromSql(lit.text, { source: at, line: lit.line }, schema, dialectFor(dialect, at));
       out = { ...merge(out, c), sources: out.sources };
     }
     if (any) out = { ...out, sources: out.sources + 1 };
@@ -288,9 +312,9 @@ export async function claimsFromSource(dir: string, schema: DeclaredSchema | nul
 }
 
 /** Everything under a repository: `.sql` files and source literals together. */
-export async function claimsFromRepository(dir: string, schema: DeclaredSchema | null = null, dialect: QueryDialect = 'postgres', ignore: readonly string[] = []): Promise<Gathered> {
-  const files = await claimsFromSqlFiles(dir, schema, dir, dialect, ignore);
-  const code = await claimsFromSource(dir, schema, dir, dialect, ignore);
+export async function claimsFromRepository(dir: string, schema: DeclaredSchema | null = null, dialect: DialectOf = 'postgres', ignore: readonly string[] = [], root = dir): Promise<Gathered> {
+  const files = await claimsFromSqlFiles(dir, schema, root, dialect, ignore);
+  const code = await claimsFromSource(dir, schema, root, dialect, ignore);
   return {
     relationships: [...files.relationships, ...code.relationships],
     polymorphic: [...files.polymorphic, ...code.polymorphic],
@@ -298,5 +322,6 @@ export async function claimsFromRepository(dir: string, schema: DeclaredSchema |
     unparsed: files.unparsed + code.unparsed,
     sources: files.sources + code.sources,
     mentions: [...new Set([...files.mentions, ...code.mentions])],
+    refusedBackticked: files.refusedBackticked + code.refusedBackticked,
   };
 }

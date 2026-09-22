@@ -38,8 +38,16 @@ export const RAILS_FILES = ['db/schema.rb', 'db/primary_schema.rb'];
 const SKIP = new Set(['node_modules', 'vendor', 'bin', 'obj', 'dist', 'build', 'target', '__pycache__', 'venv', '.venv', 'site-packages']);
 
 export interface Config {
-  /** `postgres` (default) or `mysql`; MySQL DDL is normalised into the one grammar (ADR-0004). */
-  readonly dialect?: 'postgres' | 'mysql';
+  /**
+   * `postgres` (default) or `mysql`; MySQL is normalised into the one grammar
+   * (ADR-0004). One repository can hold more than one — memos keeps
+   * `store/db/postgres`, `store/db/mysql` and `store/db/sqlite` side by side —
+   * so this may also be a map from path prefix to dialect, longest prefix
+   * winning, with `""` as the default:
+   *
+   *     "dialect": { "": "postgres", "store/db/mysql": "mysql" }
+   */
+  readonly dialect?: Dialect | Readonly<Record<string, Dialect>>;
   /** Migration directories, relative to the root. Found by looking when absent. */
   readonly migrations?: readonly string[];
   /** A `schema.prisma`. Found by looking when absent. */
@@ -69,9 +77,14 @@ export interface Config {
   readonly report?: string;
 }
 
+export type Dialect = 'postgres' | 'mysql';
+
 export interface Resolved {
   readonly root: string;
-  readonly dialect: 'postgres' | 'mysql';
+  /** The dialect the declared schema is written in: the default, whatever else is mapped. */
+  readonly dialect: Dialect;
+  /** The dialect of a file's queries, by path relative to the root. */
+  readonly dialectOf: (path: string) => Dialect;
   readonly migrations: readonly string[];
   readonly prisma: string | null;
   readonly rails: string | null;
@@ -146,6 +159,25 @@ export function findSequelizeModels(root: string): string[] {
   });
 }
 
+/**
+ * Longest matching prefix wins, so `store/db/mysql` beats the default without
+ * the order of the keys mattering.
+ */
+export function dialectResolver(setting: Config['dialect']): (path: string) => Dialect {
+  if (setting === undefined) return () => 'postgres';
+  if (typeof setting === 'string') return () => setting;
+  const entries = Object.entries(setting)
+    .map(([prefix, dialect]) => [prefix.replace(/^\.\//, '').replace(/\/+$/, ''), dialect] as const)
+    .sort((a, b) => b[0].length - a[0].length);
+  return (path: string): Dialect => {
+    const normalised = path.replace(/^\.\//, '');
+    for (const [prefix, dialect] of entries) {
+      if (prefix === '' || normalised === prefix || normalised.startsWith(`${prefix}/`)) return dialect;
+    }
+    return 'postgres';
+  };
+}
+
 export function readConfig(root: string): Config {
   const path = join(root, CONFIG_FILE);
   if (!existsSync(path)) return {};
@@ -170,7 +202,8 @@ export function resolveConfig(root: string, config: Config = readConfig(root)): 
   const kinds = new Map(pythonModels.map((f) => [f, ormKindOf(readFileSync(join(root, f), 'utf8'))]));
   return {
     root,
-    dialect: config.dialect ?? 'postgres',
+    dialect: typeof config.dialect === 'object' ? (config.dialect[''] ?? 'postgres') : (config.dialect ?? 'postgres'),
+    dialectOf: dialectResolver(config.dialect),
     migrations,
     prisma,
     rails,

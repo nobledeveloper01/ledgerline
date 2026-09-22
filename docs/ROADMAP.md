@@ -162,13 +162,19 @@ this repository.*
 
 **The gate has been run against three repositories, and is still not
 cleared** — read `docs/GATE-PHASE-4.md`, which is the evidence and not the
-verdict. Mastodon, Outline and NetBox were run on 2026-09-23; every finding
-was checked against the repository's own schema file; nine findings on
-Mastodon were confirmed true and one false one was found and fixed. Thirteen
-bugs in this tool came out of it, including a check that went green on a
-repository it could not read.
+verdict. Mastodon, Outline, NetBox and memos were run on 2026-09-23;
+every finding was checked against the repository's own schema file; nine
+findings on Mastodon and four on memos were confirmed true, and one false one
+was found and fixed. Sixteen bugs in this tool came out of it, including a
+check that went green on a repository it could not read.
 
-**The gate as written cannot be met by those three**, and that is the most
+**A fourth repository does meet it.** memos — a Go application that writes its
+own SQL — produced four failing findings, each a real join in real source that
+no constraint declares, and all four verified against a schema with exactly
+one foreign key in it. What the gate needs now is two more repositories of
+that kind, which is a search, not a script.
+
+**The gate as written cannot be met by the first three**, and that is the most
 useful thing the run produced. It asks for a true *undeclared relationship* —
 one a query relies on and no constraint declares — and all three speak to
 their databases through an ORM, so there is almost no SQL in them to read: 22

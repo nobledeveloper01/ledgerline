@@ -94,3 +94,15 @@ test('an English sentence that starts with a SQL verb is not a query, and Ruby i
   assert.equal(g.relationships[0]!.evidence.text.includes('#{'), false, 'the interpolation became a placeholder');
   rmSync(dir, { recursive: true, force: true });
 });
+
+test('DELETE FROM is the only legal spelling, so an English sentence with both words is not a query', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ledgerline-delete-'));
+  writeFileSync(
+    join(dir, 'ui.go'),
+    ['// memos has this string, and it matched a shape that allowed anything between the two words.', 'const label = "delete member from nested name"', 'const real = `DELETE FROM stars WHERE id = $1`'].join('\n'),
+  );
+  const g = await claimsFromSource(dir);
+  assert.equal(g.unparsed, 0, 'the sentence was never offered to the parser');
+  assert.equal(g.parsed, 1, 'and the real statement still was');
+  rmSync(dir, { recursive: true, force: true });
+});

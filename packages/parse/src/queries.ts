@@ -45,6 +45,13 @@ export interface QueryClaims extends Claims {
    * about the window and never advice to drop it.
    */
   readonly mentions: readonly string[];
+  /**
+   * Of the statements refused, how many were written in backtick identifiers.
+   * A bare count of refusals tells a user nothing; *188 not parsed, 172 of
+   * them in backticks* tells them the repository has MySQL in it and that
+   * `dialect` takes a path. memos keeps three dialects in three directories.
+   */
+  readonly refusedBackticked: number;
 }
 
 /**
@@ -523,6 +530,7 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
   const mentions = new Set<string>();
   let parsed = 0;
   let unparsed = 0;
+  let refusedBackticked = 0;
   const original = dialect === 'mysql' ? mysqlQueryToPostgres(sql) : sql;
   const text = normalisePlaceholders(original);
   let stmts: readonly { stmt: Node; stmt_location?: number }[];
@@ -563,7 +571,10 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
             recovered = false;
           }
         }
-        if (!recovered) unparsed++;
+        if (!recovered) {
+          unparsed++;
+          if (dialect !== 'mysql' && /`[^`]+`/.test(source ?? trimmed)) refusedBackticked++;
+        }
       }
       offset += piece.length + 1;
     }
@@ -585,7 +596,7 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
       if (!m.startsWith(`${DEFAULT_SCHEMA}.${INTERPOLATED_NAME}`)) mentions.add(m);
     }
   }
-  return { relationships, polymorphic, parsed, unparsed, mentions: [...mentions].sort() };
+  return { relationships, polymorphic, parsed, unparsed, mentions: [...mentions].sort(), refusedBackticked };
 }
 
 function statementText(text: string, start: number): string {

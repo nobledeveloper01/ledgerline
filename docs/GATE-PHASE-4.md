@@ -13,23 +13,30 @@ the point.
 
 ---
 
-## The three
+## The four
 
-| | Mastodon | Outline | NetBox |
-|---|---|---|---|
-| Stack | Rails 7.1 | Sequelize (TypeScript) | Django 5 |
-| Schema read from | `db/schema.rb` | 57 model files | 38 model files |
-| Tables | 116 | 41 | 91 |
-| SQL statements found in the repository | 22 in 17 files | 22 in 14 files | 3 in 6 files |
-| Statements the parser refused | 2 | 2 | 4 |
-| `fail` findings | 0 | 0 | 0 |
-| `warn` findings | 13 | 38 | 0 |
-| `info` findings | 9 | 0 | 0 |
-| Exit code | 0 | 0 | 0 |
+| | Mastodon | Outline | NetBox | memos |
+|---|---|---|---|---|
+| Stack | Rails 7.1 | Sequelize (TypeScript) | Django 5 | Go, raw SQL |
+| Schema read from | `db/schema.rb` | 57 model files | 38 model files | `store/migration/postgres` |
+| Tables | 116 | 41 | 91 | 17 |
+| SQL statements found | 22 in 17 files | 22 in 14 files | 3 in 6 files | **187 in 64 files** |
+| Statements refused | 2 | 2 | 4 | 120 |
+| `fail` findings | 0 | 0 | 0 | **4** |
+| `warn` findings | 13 | 38 | 0 | 3 |
+| `info` findings | 9 | 0 | 0 | 4 |
+| Exit code | 0 | 0 | 0 | **1** |
 
-All three were shallow clones of `main` on 2026-09-23. The NetBox tree was
+All four were shallow clones of `main` on 2026-09-23. The NetBox tree was
 partially materialised at the time of the run, so its 91 tables are a subset
 of the whole; the others are complete.
+
+memos was added after the first three showed why they could not meet the
+gate: it is a Go application that writes its own SQL, which is the population
+this product is actually for. It needed a three-line `ledgerline.json` —
+its migrations are in `store/migration/postgres`, which is not one of the
+places migration tools usually put them, and it keeps a *different dialect
+per directory*.
 
 ## What the gate asks for, and what actually happened
 
@@ -61,7 +68,10 @@ Two things follow, and both are for you to decide:
    do. A day of Mastodon's queries would answer the question the repository
    cannot.
 
-Neither is a thing a script can do tonight.
+**The fourth repository was found and it does meet the criterion.** memos
+produced four failing findings, each a real join in real Go source that no
+constraint declares, and all four are verified below. One repository is not
+three; what the gate still needs is two more like it.
 
 ## The findings that *were* made, and whether they are true
 
@@ -121,6 +131,37 @@ fault.** Each was traced to the SQL it named and fixed:
   and has since been renamed — the tool was reading `server/migrations` as a
   source of *queries*. A migration's DDL is the schema; its DML is history.
 
+### memos — 4 undeclared relationships, 4 confirmed true, 0 false
+
+This is the gate's actual criterion, met on one repository. memos' schema has
+**exactly one `FOREIGN KEY` in the entire file** (`store/migration/postgres/
+LATEST.sql:136`), which makes every finding below trivially checkable.
+
+| Finding | Evidence the tool gave | Confirmed |
+|---|---|---|
+| `space_member.space_id → space.id` | `store/db/mysql/user.go:107`, `store/db/postgres/user.go:94` | true — `space_member` has a composite primary key and no constraints |
+| `attachment.memo_id → memo.id` | `store/db/postgres/attachment.go:147` | true — `LEFT JOIN memo ON attachment.memo_id = memo.id`, column is `INTEGER DEFAULT NULL`, no constraint |
+| `memo.space_id → space.id` | `store/db/postgres/attachment.go:147` | true — `LEFT JOIN space AS attachment_space ON memo.space_id = attachment_space.id`; the alias resolved correctly |
+| `space_member.user_id → user.id` | `store/db/postgres/memo.go:97` and 5 more | true — `JOIN "user" u ON u.id = sm.user_id`, no constraint |
+
+Both orphan-side warnings are true for the same reason: `attachment.memo_id`
+and `memo.space_id` are nullable and nothing checks what they point at.
+
+The four `info` findings name columns whose names promise a relationship the
+database does not declare — `memo_relation.memo_id`, `reaction.memo_id`,
+`user_identity.user_id`, `user_setting.user_id`. With one foreign key in the
+whole schema, all four are true.
+
+**memos also found two more bugs.** *187 not parsed* turned out to be mostly
+MySQL: memos keeps `store/db/postgres`, `store/db/mysql` and
+`store/db/sqlite` side by side, and the tool had one `dialect` setting for a
+whole repository — an assumption, not a fact. `dialect` now takes a path map,
+and the summary line says *120 not parsed (68 of them in backticks — set
+"dialect" for those paths)* instead of a bare number. And
+`"delete member from nested name"` was still getting past the *looks like
+SQL* test, because that test allowed anything between `DELETE` and `FROM`;
+`DELETE FROM` is the only legal spelling.
+
 ### NetBox — nothing, correctly
 
 91 tables, 3 SQL statements in the whole repository, none of them naming a
@@ -135,7 +176,7 @@ exist.
 
 ## What the three repositories changed in the tool
 
-Thirteen fixes, none of which the 200-table fixture corpus had ever provoked.
+Sixteen fixes, none of which the 200-table fixture corpus had ever provoked.
 The full list is in `CHANGELOG.md`; the ones that mattered most:
 
 1. **A check that read no schema went green.** Exit 0 and *No findings* for a
@@ -153,8 +194,10 @@ The full list is in `CHANGELOG.md`; the ones that mattered most:
 
 ## What a person still has to do
 
-- Decide whether the gate should be re-pointed at repositories with raw SQL,
-  or at a query log, and say which in `docs/ROADMAP.md`.
+- Find two more repositories like memos — applications that write their own
+  SQL — and run them. That is what is left of the gate, and memos shows it is
+  reachable. Or decide the gate should ask for a query log instead, and say
+  which in `docs/ROADMAP.md`.
 - Read the nine Mastodon findings above against `db/schema.rb` and disagree
   with any of them. The verification here was mechanical; mechanical is not
   the same as read.

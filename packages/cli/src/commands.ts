@@ -62,9 +62,14 @@ function readBaseline(path: string): Baseline | null {
   return parsed;
 }
 
-function readSummary(report: { from: string; sources: number; statementsParsed: number; statementsUnparsed: number }): string {
+function readSummary(report: { from: string; sources: number; statementsParsed: number; statementsUnparsed: number; refusedBackticked?: number }): string {
   const parts = [`schema from ${report.from}`, `${report.statementsParsed} statement${report.statementsParsed === 1 ? '' : 's'} in ${report.sources} source${report.sources === 1 ? '' : 's'}`];
-  if (report.statementsUnparsed > 0) parts.push(`${report.statementsUnparsed} not parsed`);
+  if (report.statementsUnparsed > 0) {
+    // A bare count tells a user nothing. If the refusals are in backticks the
+    // repository has MySQL in it, and `dialect` takes a path.
+    const backticked = report.refusedBackticked ?? 0;
+    parts.push(backticked > 0 ? `${report.statementsUnparsed} not parsed (${backticked} of them in backticks — set "dialect" for those paths)` : `${report.statementsUnparsed} not parsed`);
+  }
   return parts.join(' · ');
 }
 

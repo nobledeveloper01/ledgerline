@@ -216,3 +216,28 @@ test('declared-and-unused is claimed only about tables some query actually named
   assert.match(text, /tables were named by no query that was read/);
   rmSync(root, { recursive: true, force: true });
 });
+
+test('one repository, three dialects: the dialect is a path, not a repository', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ledgerline-dialects-'));
+  mkdirSync(join(root, 'migrations'), { recursive: true });
+  writeFileSync(join(root, 'migrations', '001.sql'), 'CREATE TABLE users (id serial PRIMARY KEY);\nCREATE TABLE orders (id serial PRIMARY KEY, user_id integer);');
+  // memos' shape: a directory per dialect, the same query in each.
+  mkdirSync(join(root, 'db', 'postgres'), { recursive: true });
+  mkdirSync(join(root, 'db', 'mysql'), { recursive: true });
+  writeFileSync(join(root, 'db', 'postgres', 'q.go'), 'const q = `SELECT o.id FROM orders o JOIN users u ON u.id = o.user_id`\n');
+  writeFileSync(join(root, 'db', 'mysql', 'q.go'), 'const q = "SELECT `o`.`id` FROM `orders` `o` JOIN `users` `u` ON `u`.`id` = `o`.`user_id` LIMIT 0, 10"\n');
+
+  // Read as one dialect, the MySQL half is refused — and the summary says why.
+  const one = await check({ root });
+  assert.match(one.lines[0]!, /1 not parsed \(1 of them in backticks — set "dialect" for those paths\)/);
+
+  writeFileSync(join(root, 'ledgerline.json'), JSON.stringify({ dialect: { '': 'postgres', 'db/mysql': 'mysql' } }));
+  const both = await check({ root });
+  assert.ok(!both.lines[0]!.includes('not parsed'), both.lines[0]);
+  // The same join, found in both files, is one edge with two places behind it.
+  const text = both.lines.join('\n');
+  assert.match(text, /relies on public\.orders\.user_id → public\.users\.id/);
+  assert.match(text, /db\/mysql\/q\.go/);
+  assert.match(text, /db\/postgres\/q\.go/);
+  rmSync(root, { recursive: true, force: true });
+});

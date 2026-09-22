@@ -32,6 +32,16 @@ described.
   resolving it against the inner scope invented a `documents.documentId` and
   a self-join that does not exist. An unqualified column now walks out through
   the enclosing scopes, which is what a correlated reference is.
+- **One repository can hold more than one dialect.** memos keeps
+  `store/db/postgres`, `store/db/mysql` and `store/db/sqlite` side by side,
+  and `dialect` was one setting for a whole repository — an assumption, not a
+  fact. It now also takes a map from path prefix to dialect, longest prefix
+  winning. And a bare *187 not parsed* is not a useful thing to tell someone:
+  the summary now says how many of the refusals were written in backticks,
+  and that `dialect` takes a path.
+- **`DELETE FROM` is the only legal spelling**, and the *looks like SQL* test
+  allowed anything between the two words, so `"delete member from nested
+  name"` was still being handed to the parser.
 - **A named parameter with a cast on it is a parameter.** The rewrite of
   `:name` to `$n` refused any name followed by `::`, so `:startUuid::uuid` —
   which is what a Sequelize query looks like — was left for the parser to

@@ -12,5 +12,5 @@ export { parseEfCoreSnapshot, type EfCoreSchema } from './efcore.ts';
 export { parseSequelizeModels, pluralize, baseClassOf, type SequelizeSchema } from './sequelize.ts';
 export { schemaFromDatabase } from './live.ts';
 export { MODEL_FILE, FORMAT_VERSION, serializeModel, writeModel, readModel } from './modelfile.ts';
-export { claimsFromSqlFiles, claimsFromLog, claimsFromSource, claimsFromRepository, stringLiterals, skipPattern, type Gathered } from './queries.ts';
+export { claimsFromSqlFiles, claimsFromLog, claimsFromSource, claimsFromRepository, stringLiterals, skipPattern, type Gathered, type DialectOf } from './queries.ts';
 export { historyOf, historyOfDirectory, type HistoryEvent, type EventKind } from './history.ts';
