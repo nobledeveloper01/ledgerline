@@ -135,6 +135,12 @@ described.
 
 ### Added
 
+- **The README is the documentation now.** It was a pitch with a status
+  section: what the tool was for, and nothing about how to use it. It carries
+  quick start, what it reads, the commands with real output, the
+  configuration that covers almost every case, the findings table, the CI
+  snippet and what it refuses to be — enough to land on the repository and be
+  running in a minute, with the four reference pages behind it for the detail.
 - **User documentation, which did not exist.** The repository was thoroughly
   documented for whoever *builds* it — a product statement, a roadmap, seven
   ADRs, a journal — and had nothing for whoever *uses* it: no command
