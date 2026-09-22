@@ -160,6 +160,23 @@ histories, `ledgerline check` finds at least one true undeclared relationship in
 each and reports zero false ones; the pull-request comment renders on a real PR in
 this repository.*
 
+**The gate has been run against three repositories, and is still not
+cleared** — read `docs/GATE-PHASE-4.md`, which is the evidence and not the
+verdict. Mastodon, Outline and NetBox were run on 2026-09-23; every finding
+was checked against the repository's own schema file; nine findings on
+Mastodon were confirmed true and one false one was found and fixed. Thirteen
+bugs in this tool came out of it, including a check that went green on a
+repository it could not read.
+
+**The gate as written cannot be met by those three**, and that is the most
+useful thing the run produced. It asks for a true *undeclared relationship* —
+one a query relies on and no constraint declares — and all three speak to
+their databases through an ORM, so there is almost no SQL in them to read: 22
+statements for Mastodon's 116 tables, 3 for NetBox's 91. Meeting it needs
+either repositories that contain raw SQL, or a query log pointed at one of
+these. Which of those the gate should ask for is a decision, not a script, and
+it is written down at the end of `docs/GATE-PHASE-4.md`.
+
 **The code is built; the gate is not cleared, and will not be claimed.** The
 command exists — `check`, `model`, `report`, `mermaid`, `baseline`, `explain`,
 `blast`, `history`, `pr` — with a config file that is optional, a stale model

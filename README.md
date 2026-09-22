@@ -92,10 +92,15 @@ a relation to a class in a file the reader never saw — the line is reported as
 unread and no edge is drawn. An invented edge is worse than a missing one,
 because the diagram would look complete.
 
-**What is not done:** running the check against three real public repositories
-and reading every finding by hand to confirm it is true — Phase 4's gate, and
-Phase 5 repeats it for MySQL. Until that afternoon happens this is code that
-works on its own corpus, which is not the same claim.
+**What is not done:** Phase 4's gate. The check *has* been run against three
+real public repositories — Mastodon, Outline and NetBox — and every finding
+checked against the repository's own schema file: nine true findings on
+Mastodon, one false one found and fixed, and thirteen bugs in this tool.
+[`docs/GATE-PHASE-4.md`](docs/GATE-PHASE-4.md) is the whole of it. The gate is
+still open, because the run showed the gate as written cannot be met by three
+ORM-first repositories — with no SQL there are no query-versus-constraint
+disagreements to find — and choosing what it should ask for instead is a
+decision somebody has to make.
 
 ```
 npx ledgerline check

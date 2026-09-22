@@ -69,12 +69,29 @@ const IRREGULAR: Readonly<Record<string, string>> = {
   addresses: 'address',
 };
 
-/** Enough of Rails' inflector for a table name; anything else is reported, not guessed. */
+/**
+ * Enough of Rails' inflector for a table name; anything else is reported, not
+ * guessed.
+ *
+ * The `is$` case is why this has a comment. It used to say *a word ending in
+ * `is` is already singular* — true of `analysis`, false of `custom_emojis`,
+ * and Mastodon has a `custom_emojis` table. Rails' own inflector has no such
+ * rule: it has a list for `-sis` words and a short list of words like
+ * `status` that end in `s` and are singular, and everything else just loses
+ * its `s`. This follows that shape, which is the only way the derived column
+ * for `add_foreign_key "announcement_reactions", "custom_emojis"` comes out
+ * as `custom_emoji_id` and not `custom_emojis_id`.
+ */
 export function singularize(plural: string): string {
   const lower = plural.toLowerCase();
   const irregular = IRREGULAR[lower];
   if (irregular !== undefined) return irregular;
-  if (/(ss|us|is)$/.test(lower)) return lower;
+  // Words that end in `s` and are already singular.
+  if (/(^|_)(alias|status|bus|lens|news|series|species)$/.test(lower)) return lower;
+  if (/ss$/.test(lower)) return lower;
+  // `analyses` → `analysis`, and the rest of the `-sis` family.
+  const sis = /(analy|ba|diagno|parenthe|progno|synop|the)ses$/.exec(lower);
+  if (sis) return `${lower.slice(0, -3)}sis`;
   if (/ies$/.test(lower)) return `${lower.slice(0, -3)}y`;
   if (/(ch|sh|x|z|s)es$/.test(lower)) return lower.slice(0, -2);
   if (/ves$/.test(lower)) return `${lower.slice(0, -3)}f`;

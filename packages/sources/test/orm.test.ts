@@ -60,6 +60,16 @@ test('the inflector knows the regular rules and says nothing it does not know', 
   assert.equal(singularize('addresses'), 'address');
   assert.equal(singularize('people'), 'person');
   assert.equal(singularize('status'), 'status');
+  assert.equal(singularize('statuses'), 'status');
+  assert.equal(singularize('addresses'), 'address');
+  assert.equal(singularize('classes'), 'class');
+  assert.equal(singularize('buses'), 'bus');
+  assert.equal(singularize('analyses'), 'analysis');
+  // Mastodon has a `custom_emojis` table, and a rule saying *ends in `is`, so
+  // already singular* made Rails' derived column `custom_emojis_id`. It is
+  // `custom_emoji_id`, and this was a false finding on a real repository.
+  assert.equal(singularize('custom_emojis'), 'custom_emoji');
+  assert.equal(singularize('emojis'), 'emoji');
   // Not an irregular it knows: it returns something, and the caller checks the column exists.
   assert.equal(singularize('geese'), 'goose');
 });

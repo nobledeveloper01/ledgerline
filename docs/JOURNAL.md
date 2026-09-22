@@ -101,11 +101,41 @@ failing finding and going to look at the SQL it named:
 Seven failing findings on Outline before; zero after, and every one of the
 seven was the tool's fault rather than Outline's.
 
+### And then NetBox, and the gate turning out to be the wrong question
+
+Django's real style is nothing like the `models.py` the reader was written
+for: the models are a *package*, every field spans five or six lines, and a
+`ForeignKey('dcim.Cable')` reaches into another file. The app label — half of
+every table name — is the directory *above* `models/`, and getting it wrong
+renames every table in the schema. Rewritten, NetBox goes from no schema at
+all to 91 tables.
+
+**Then the gate failed in a way no code change can fix.** It asks for a true
+*undeclared relationship* in each of three repositories, and all three speak
+to their databases through an ORM: 22 SQL statements for Mastodon's 116
+tables, 3 for NetBox's 91. With no queries there are no query-versus-constraint
+disagreements, and the tool correctly found none. The gate as written can only
+be met by repositories that contain raw SQL, and reading three ORM-first
+repositories as a pass would be exactly the green this repository exists to
+refuse. Written up in `docs/GATE-PHASE-4.md` as a decision for a person, not
+quietly re-scoped.
+
+**The single most useful finding was a false one.**
+`announcement_reactions.custom_emoji_id → custom_emojis` was reported as
+undeclared, and `schema.rb` declares it on line 1509. Rails derives that
+column by singularising `custom_emojis`, and the inflector here had a rule
+saying *a word ending in `is` is already singular* — true of `analysis`,
+false of `custom_emojis`. Nine true findings taught less than that one false
+one. Note what the reader did *not* do: it did not invent a `custom_emojis_id`
+column, it reported the line as unread, exactly as ADR-0005 says. The safety
+rule held and the inflector was still wrong, which is the whole argument for
+having both.
+
 ### Still open
 
-- The gate itself: three repositories, every finding read by a person. Two are
-  run and their findings are recorded here; nobody has confirmed them yet.
-  That is still the honest state and it is still not claimed.
+- The gate. Three repositories are run, every finding is checked, and the
+  evidence is in `docs/GATE-PHASE-4.md`. What is left is a person reading it
+  and deciding what the gate should ask for. It is still not claimed.
 
 ## 2026-09-23, later — Phase 5: MySQL, and two ORMs read without running them
 
