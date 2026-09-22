@@ -59,11 +59,53 @@ link in six hundred files. A repository does not hold still: a build deletes
 things, a link points nowhere, a directory is not readable. All three are
 skipped now.
 
+### Then Outline, which could not be read at all
+
+A Sequelize repository has no file that is the schema. The migrations are
+*JavaScript* calling `queryInterface.createTable`; the models are decorated
+TypeScript classes. Outline is 30 MB of it, with 56 real SQL statements in its
+own source, and this tool could read none of its 41 tables. So there is a
+sixth reader now, and the roadmap never listed it — which is the argument for
+the gate being a real repository instead of a corpus, made in one sentence.
+
+**Writing it produced the best bug of the session.** `class IdModel<T extends
+object = any> extends Model<T>` contains two `extends`, and the first is a
+constraint on a type parameter. Taking the first gave every model in Outline
+the base class `object`, which meant every model lost the columns its base
+lends it — including `id`. Fifty-four tables came back with no primary key,
+and a schema with no primary keys still *looks* like a schema: it lays out, it
+renders, every relationship is there. Nothing would have said a word. The
+fix reads `extends` at angle-bracket depth zero and has a test that is three
+strings long.
+
+**Then Outline gave up three parser bugs in return**, each found by reading a
+failing finding and going to look at the SQL it named:
+
+- `WITH lockable AS (…) UPDATE documents …` reported `lockable` as a table the
+  queries use and no schema declares. `WITH` had been read for `SELECT` and
+  for nothing else, so a name that exists inside one statement became a
+  failing finding about the schema.
+- `DELETE FROM stars WHERE NOT EXISTS (SELECT NULL FROM documents doc WHERE
+  doc.id = "documentId")` invented `documents.documentId` and a self-join on
+  `documents`. The column is `stars`', one scope out. An unqualified column
+  now walks out through the enclosing scopes, which is what a correlated
+  reference *is*.
+- Two more failures were about `collection_users`, a table that was real in
+  April 2023 and has since been renamed. The finding was true about 2023 and
+  useless about today, because the tool was reading `server/migrations` as a
+  source of *queries*. A migration's DDL is the schema; its DML is history.
+  Migration directories are now excluded from the query scan — which also
+  turned up `config.ignore`, resolved from the configuration file since Phase
+  4 and never once used by anything.
+
+Seven failing findings on Outline before; zero after, and every one of the
+seven was the tool's fault rather than Outline's.
+
 ### Still open
 
-- The gate itself: three repositories, every finding read by a person. One is
-  run; the findings are recorded; nobody has confirmed them yet. That is still
-  the honest state and it is still not claimed.
+- The gate itself: three repositories, every finding read by a person. Two are
+  run and their findings are recorded here; nobody has confirmed them yet.
+  That is still the honest state and it is still not claimed.
 
 ## 2026-09-23, later — Phase 5: MySQL, and two ORMs read without running them
 
