@@ -24,6 +24,8 @@ export interface BuildReport {
   readonly statementsParsed: number;
   readonly statementsUnparsed: number;
   readonly sources: number;
+  /** What the queries named, for `usage` (ADR-0003 #2). Stars are not expanded here. */
+  readonly mentions: readonly string[];
 }
 
 export interface BuildOptions {
@@ -31,7 +33,7 @@ export interface BuildOptions {
   readonly databaseUrl?: string;
 }
 
-const NONE: Gathered = { relationships: [], polymorphic: [], parsed: 0, unparsed: 0, sources: 0 };
+const NONE: Gathered = { relationships: [], polymorphic: [], parsed: 0, unparsed: 0, sources: 0, mentions: [] };
 
 function join2(a: Gathered, b: Gathered): Gathered {
   return {
@@ -40,6 +42,7 @@ function join2(a: Gathered, b: Gathered): Gathered {
     parsed: a.parsed + b.parsed,
     unparsed: a.unparsed + b.unparsed,
     sources: a.sources + b.sources,
+    mentions: [...new Set([...a.mentions, ...b.mentions])],
   };
 }
 
@@ -123,5 +126,6 @@ export async function buildModel(config: Resolved, options: BuildOptions = {}): 
     statementsParsed: gathered.parsed,
     statementsUnparsed: gathered.unparsed,
     sources: gathered.sources,
+    mentions: gathered.mentions,
   };
 }

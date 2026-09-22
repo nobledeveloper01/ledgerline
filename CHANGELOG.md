@@ -6,6 +6,19 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
 
 ### Added
 
+- **`ledgerline usage`** — ADR-0003 #2, which was a rule in the model with no
+  command behind it until now. Given a query log in `ledgerline.json`, it says
+  which tables no query touched and which columns no query named **in that
+  window**, and `report` draws them faded. Every sentence names the window,
+  and the command ends by saying so out loud: a column nothing read here may
+  be read by a job that did not run. It never tells anyone to drop anything.
+  With no log configured there is no window, so nothing is faded — the
+  repository's own SQL is not a usage sample.
+- The query reader now records every column a statement *names*, not only the
+  ones it joins on: select lists, `GROUP BY`, `ORDER BY`, `HAVING`, the columns
+  an `INSERT` writes, and `SELECT *`, which reads every column of the tables in
+  scope and is expanded once the schema is known.
+
 - **MySQL and MariaDB.** Set `"dialect": "mysql"` in `ledgerline.json` and the
   DDL and the queries are read in MySQL's spelling: backtick identifiers,
   `int(11)`, `ENGINE=InnoDB`, `KEY` clauses inside `CREATE TABLE`, `MODIFY`

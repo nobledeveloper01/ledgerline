@@ -6,7 +6,7 @@
 
 import pc from 'picocolors';
 
-import { baseline, blast, check, explain, history, mermaid, model, prComment, report } from './commands.ts';
+import { baseline, blast, check, explain, history, mermaid, model, prComment, report, usage } from './commands.ts';
 
 const USAGE = `ledgerline — the diagram of your database derived from what your code actually does
 
@@ -18,6 +18,7 @@ const USAGE = `ledgerline — the diagram of your database derived from what you
   ledgerline explain <text>                         the evidence, and the DDL that would close it
   ledgerline blast <table>                          what a change to it reaches
   ledgerline history [table]                        when each table and column arrived
+  ledgerline usage                                  what the window touched, and what it did not
   ledgerline pr                                     the pull-request comment, a sentence first
 
 Options
@@ -91,6 +92,9 @@ export async function run(argv: readonly string[]): Promise<number> {
         break;
       case 'history':
         outcome = await history(args[0] ?? null, common);
+        break;
+      case 'usage':
+        outcome = await usage(common);
         break;
       case 'pr':
         outcome = await prComment(common);

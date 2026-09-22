@@ -72,7 +72,8 @@ erDiagram
 finds the relationships the queries rely on that no migration declares, and
 exits non-zero. There is a baseline for old codebases, `explain` with the DDL
 that would close a finding, `blast` for what a change reaches, `history` from
-the migration files, a static HTML report, a Mermaid diagram, and a GitHub
+the migration files, `usage` for what a query log's window touched and what it
+did not, a static HTML report, a Mermaid diagram, and a GitHub
 Action that posts one pull-request comment and edits it in place. The tool
 gates itself: `make self-check` plants a drift in its own fixture and requires
 the check to fail.
@@ -100,11 +101,12 @@ works on its own corpus, which is not the same claim.
 npx ledgerline check
 ```
 
-**The numbers.** 74 tests across five packages, two against a real PostgreSQL,
+**The numbers.** 76 tests across five packages, two against a real PostgreSQL,
 three of them 200-world properties · 6 fixtures diffed on every build, two of
 them 200 tables — the same schema in PostgreSQL and in MySQL · 9 gates, three
 of them — the boundary, the fixtures and the tool itself — broken on purpose
-every run · 5 ADRs · 7 places a schema can come from, and none of them is run.
+every run · 5 ADRs · 10 commands · 7 places a schema can come
+from, and none of them is run.
 
 | | |
 |---|---|

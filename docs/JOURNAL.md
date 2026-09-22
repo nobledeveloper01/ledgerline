@@ -15,9 +15,30 @@ MySQL's spelling; and all five ORM readers — Rails `schema.rb`, Django
 `models.py`, SQLAlchemy, TypeORM entities, EF Core model snapshots (ADR-0005)
 — wired into the CLI behind migrations, with a CLI test that runs `check` on a
 repository whose only schema is two TypeORM files. 74 tests, 6 fixtures,
-5 ADRs.
+5 ADRs. Then `ledgerline usage`, because ADR-0003 #2 turned out to be a rule
+with no command behind it.
 
 ### What surprised us
+
+**A rule in the model is not a feature, and only grep knew.** ADR-0003 #2 —
+dead columns from a query log — had `usage()` written, tested and pure in
+`packages/model`, and *nothing called it*. Phase 4 said its code was built;
+`make ci` was green; the roadmap said usage was on the diagram. All true of
+the rule, none of it true of the product. The audit that found it was
+`grep -rn usage packages/cli packages/render`, which printed nothing. Every
+other one of the fifteen had a command or a gate behind it; this one had a
+unit test, which is exactly the kind of green that means nothing.
+
+Building it found two more: the query walker only ever read *join predicates*,
+so `SELECT id, email FROM users` recorded `id` (from the WHERE) and not
+`email`, and `SELECT *` recorded nothing at all. Both were invisible while the
+only question asked of a query was *what does it join*.
+
+**And then walking more of the query claimed the same join twice.** The new
+mentions walk reaches a sub-select the join walk has usually reached already,
+so `IN (SELECT …)` produced its relationship twice. The fix is a `WeakSet` of
+sub-selects already walked — one set, whichever walk arrives first — and the
+test that caught it was one written three phases ago for a different reason.
 
 **MySQL and PostgreSQL disagree about what an alter that omits something
 means.** `ALTER TABLE t ALTER COLUMN c TYPE text` in PostgreSQL changes the

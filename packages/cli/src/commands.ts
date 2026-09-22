@@ -20,6 +20,7 @@ import {
   isEmptyDiff,
   makeBaseline,
   tableKey,
+  usage as usageReport,
   type Baseline,
   type Finding,
   type Model,
@@ -131,7 +132,16 @@ export async function report(options: CommonOptions & { out?: string } = {}): Pr
   const config = settings(options);
   const built = await buildModel(config, options);
   const out = options.out ?? config.report;
-  const html = await renderHtml(built.model, { title: 'Ledgerline', findings: sortFindings(modelFindings(built.model, config.policy)) });
+  // With a query log configured, the window is a claim worth drawing: what it
+  // did not touch is faded (ADR-0003 #2). Without one there is no window, so
+  // nothing is faded — the repository's own SQL is not a usage sample.
+  const usage =
+    config.logs.length > 0 ? { touched: expandStars(built.model, built.mentions), window: config.logs.join(', ') } : undefined;
+  const html = await renderHtml(built.model, {
+    title: 'Ledgerline',
+    findings: sortFindings(modelFindings(built.model, config.policy)),
+    ...(usage === undefined ? {} : { usage }),
+  });
   writeFileSync(join(config.root, out), html);
   return { code: 0, lines: [readSummary(built), `wrote ${out} (${Math.round(html.length / 1024)} kB)`] };
 }
@@ -194,6 +204,63 @@ export async function blast(table: string, options: CommonOptions = {}): Promise
       ...b.places.map((p) => `  ${p}`),
     ],
   };
+}
+
+/**
+ * Expands the stars a query reader could not: `public.users.*` means every
+ * column of `public.users`, and the schema is known here even though it was
+ * not known where the star was seen.
+ */
+export function expandStars(model: Model, mentions: readonly string[]): Set<string> {
+  const out = new Set<string>();
+  for (const m of mentions) {
+    if (!m.endsWith('.*')) {
+      out.add(m);
+      continue;
+    }
+    const key = m.slice(0, -2);
+    out.add(key);
+    const table = model.tables.find((t) => tableKey(t) === key);
+    for (const c of table?.columns ?? []) out.add(`${key}.${c.name}`);
+  }
+  return out;
+}
+
+/**
+ * `ledgerline usage [--log FILE]` — ADR-0003 #2.
+ *
+ * What the window touched, and therefore what it did not. Every sentence here
+ * names the window, because *no query read this column* is only ever true of
+ * a window: the nightly job that reads it may not have run, and this command
+ * has no way to know. It never says drop anything.
+ */
+export async function usage(options: CommonOptions = {}): Promise<Outcome> {
+  const config = settings(options);
+  const built = await buildModel(config, options);
+  const window = config.logs.length > 0 ? config.logs.join(', ') : `the queries in ${config.queries.join(', ')}`;
+  const seen = expandStars(built.model, built.mentions);
+  const report = usageReport(built.model, seen, window);
+  const lines = [
+    `Read from ${window}: ${built.statementsParsed} statement${built.statementsParsed === 1 ? '' : 's'} across ${built.sources} source${built.sources === 1 ? '' : 's'}.`,
+  ];
+  if (built.statementsParsed === 0) {
+    return { code: 0, lines: [...lines, 'Nothing was read, so nothing can be said about what is unused.'] };
+  }
+  lines.push(
+    report.unusedTables.length === 0
+      ? 'Every table was touched in this window.'
+      : `${report.unusedTables.length} table${report.unusedTables.length === 1 ? '' : 's'} no query touched in this window:`,
+    ...report.unusedTables.map((t) => `  ${tableKey(t)}`),
+    report.unusedColumns.length === 0
+      ? 'Every column of every touched table was named in this window.'
+      : `${report.unusedColumns.length} column${report.unusedColumns.length === 1 ? '' : 's'} no query named in this window:`,
+    ...report.unusedColumns.map((c) => `  ${c.schema}.${c.name}.${c.column}`),
+    '',
+    'This is a fact about the window, not advice. A column nothing read here may',
+    'be read by a job that did not run, a report nobody ran, or a human at a psql',
+    'prompt. Widen the window before you believe it.',
+  );
+  return { code: 0, lines };
 }
 
 /** `ledgerline history [table]` — when each table and column arrived, from the migration files. */

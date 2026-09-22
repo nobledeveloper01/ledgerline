@@ -32,9 +32,11 @@ export interface Gathered extends Claims {
   readonly unparsed: number;
   /** Files or entries read. */
   readonly sources: number;
+  /** Every `schema.table.column` (and `schema.table.*`) the window named; see `QueryClaims.mentions`. */
+  readonly mentions: readonly string[];
 }
 
-const NONE: Gathered = { relationships: [], polymorphic: [], parsed: 0, unparsed: 0, sources: 0 };
+const NONE: Gathered = { relationships: [], polymorphic: [], parsed: 0, unparsed: 0, sources: 0, mentions: [] };
 
 function merge(a: Gathered, b: QueryClaims): Gathered {
   return {
@@ -43,6 +45,7 @@ function merge(a: Gathered, b: QueryClaims): Gathered {
     parsed: a.parsed + b.parsed,
     unparsed: a.unparsed + b.unparsed,
     sources: a.sources + 1,
+    mentions: [...new Set([...a.mentions, ...b.mentions])],
   };
 }
 
@@ -227,5 +230,6 @@ export async function claimsFromRepository(dir: string, schema: DeclaredSchema |
     parsed: files.parsed + code.parsed,
     unparsed: files.unparsed + code.unparsed,
     sources: files.sources + code.sources,
+    mentions: [...new Set([...files.mentions, ...code.mentions])],
   };
 }

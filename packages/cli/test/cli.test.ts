@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { baseline, blast, check, explain, history, mermaid, prComment, report } from '../src/index.ts';
+import { baseline, blast, check, explain, history, mermaid, prComment, report, usage } from '../src/index.ts';
 
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'ledgerline-cli-'));
@@ -129,5 +129,44 @@ test('a repository with no SQL at all: the ORM file is the schema, and the queri
   // The declared relation is declared and used; the one only the query knows is the finding.
   assert.match(text, /orders\.referrer_id → public\.customers\.id, which no constraint declares/);
   assert.equal(out.code, 1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('usage says what a window touched, names the window, and never advises', async () => {
+  const root = repo();
+  // A window: one log, two statements. `orders` is never named in it.
+  writeFileSync(join(root, 'window.sql'), 'SELECT id, email FROM users WHERE id = 1;\nSELECT * FROM invoices;\n');
+  writeFileSync(join(root, 'ledgerline.json'), JSON.stringify({ logs: ['window.sql'], queries: [] }));
+
+  const out = await usage({ root });
+  const text = out.lines.join('\n');
+  assert.equal(out.code, 0);
+  assert.match(text, /Read from window\.sql: 2 statements/);
+  assert.match(text, /1 table no query touched in this window:\n {2}public\.orders/);
+  // `SELECT *` reads every column, so invoices contributes no unused columns.
+  assert.ok(!text.includes('public.invoices.'), 'a star reads every column of the table');
+  // users.email and users.id were both named; nothing of users is unused.
+  assert.ok(!text.includes('public.users.'), JSON.stringify(out.lines));
+  assert.match(text, /a fact about the window, not advice/);
+  assert.ok(!/\bdrop\b/i.test(text.replace('advice', '')) || text.includes('not advice'), 'it never tells anyone to drop a column');
+
+  // And the report fades exactly what the window did not touch.
+  await report({ root });
+  const html = readFileSync(join(root, 'ledgerline.html'), 'utf8');
+  assert.match(html, /<g class="table unused" data-table="public\.orders"/);
+  assert.match(html, /No query named this column in window\.sql/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('with no query log there is no window, so nothing is faded', async () => {
+  const root = repo();
+  await report({ root });
+  const html = readFileSync(join(root, 'ledgerline.html'), 'utf8');
+  // `declared_unused` is an edge state and appears in the stylesheet either
+  // way; what must not appear is a faded table, a faded column, or the
+  // sentence that names a window.
+  assert.ok(!html.includes('class="table unused"'), 'the repository’s own SQL is not a usage sample');
+  assert.ok(!html.includes('class="col unused"'));
+  assert.ok(!html.includes('No query named this column in'));
   rmSync(root, { recursive: true, force: true });
 });

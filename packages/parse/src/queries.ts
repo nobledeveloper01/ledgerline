@@ -36,6 +36,15 @@ export interface QueryClaims extends Claims {
   readonly unparsed: number;
   /** Statements parsed, whether or not they yielded a claim. */
   readonly parsed: number;
+  /**
+   * Every `schema.table.column` a statement named, and `schema.table.*` for a
+   * star — which touches every column of the tables in scope, but the reader
+   * may not know what those are, so it says *star* and lets the caller who has
+   * the schema expand it. This is what ADR-0003 #2 is measured from: a column
+   * absent from this set was not read **in this window**, which is a fact
+   * about the window and never advice to drop it.
+   */
+  readonly mentions: readonly string[];
 }
 
 /**
@@ -77,6 +86,16 @@ interface Resolved {
 class Walker {
   readonly relationships: RelationshipClaim[] = [];
   readonly polymorphic: PolymorphicClaim[] = [];
+  /** Every column and star this statement named; see `QueryClaims.mentions`. */
+  readonly mentions = new Set<string>();
+  /**
+   * Sub-selects already walked. The *mentions* walk reaches a sub-select that
+   * the join walk has usually reached already — from the WHERE clause, or as a
+   * target-list `SubLink` — and walking it twice would claim its joins twice.
+   * One set, so each sub-select is read exactly once whichever walk gets there
+   * first.
+   */
+  private readonly walked = new WeakSet<object>();
   private readonly schema: DeclaredSchema | null;
   private readonly evidence: { source: string; line?: number; text: string };
 
@@ -88,6 +107,11 @@ class Walker {
   private columnsOf(t: TableRef): readonly string[] | null {
     const found = this.schema?.tables.find((x) => x.schema === t.schema && x.name === t.name);
     return found ? found.columns.map((c) => c.name) : null;
+  }
+
+  private note(r: Resolved | null): Resolved | null {
+    if (r !== null) this.mentions.add(`${r.table.schema}.${r.table.name}.${r.column}`);
+    return r;
   }
 
   private resolve(scope: Scope, fields: string[]): Resolved | null {
@@ -133,6 +157,8 @@ class Walker {
       // A CTE or derived table with this name shadows a table of the same name.
       const known = rv.schemaname ? undefined : lookup(scope, rv.relname);
       scope.names.set(rv.alias?.aliasname ?? rv.relname, known === null ? null : t);
+      // A table a query names is a table the window touched, whatever it read.
+      if (known !== null) this.mentions.add(`${t.schema}.${t.name}`);
     } else if (item['JoinExpr']) {
       const j = item['JoinExpr'] as { larg: Node; rarg: Node; quals?: Node; usingClause?: unknown[] };
       this.fromItem(scope, j.larg);
@@ -249,8 +275,19 @@ class Walker {
     const c = n['ColumnRef'] as { fields: unknown[] } | undefined;
     if (!c) return null;
     const fields = c.fields.map(str).filter((f) => f.length > 0);
-    if (fields.length === 0 || fields.length !== c.fields.length) return null; // a star, or something not a name
-    return this.resolve(scope, fields);
+    if (fields.length === 0 || fields.length !== c.fields.length) {
+      // A star: `*` reads every column of every table in scope, and `t.*`
+      // every column of that one. The reader records the star; the caller
+      // with the schema expands it.
+      const qualifier = fields.length === 1 ? fields[0] : undefined;
+      for (const [alias, t] of scope.names) {
+        if (t === null) continue;
+        if (qualifier !== undefined && alias !== qualifier && t.name !== qualifier) continue;
+        this.mentions.add(`${t.schema}.${t.name}.*`);
+      }
+      return null;
+    }
+    return this.note(this.resolve(scope, fields));
   }
 
   private literal(n: Node): string | null {
@@ -280,8 +317,36 @@ class Walker {
     if (col) this.claim(outer, col);
   }
 
+  /**
+   * Every column named anywhere in an expression, recorded as *touched* and
+   * nothing more (ADR-0003 #2).
+   *
+   * Deliberately separate from `conjuncts`, which is where relationships come
+   * from: a comparison in a select list or an ORDER BY is not a join, and
+   * treating it as one would put edges on the diagram that no join supports.
+   * This walk only ever adds to `mentions`.
+   */
+  private touch(scope: Scope, n: Node | undefined | null): void {
+    if (n === null || n === undefined || typeof n !== 'object') return;
+    if (n['ColumnRef']) {
+      this.column(scope, n);
+      return;
+    }
+    if (n['SubLink']) {
+      const s = n['SubLink'] as { subselect: Node };
+      this.select(scope, s.subselect);
+      return;
+    }
+    for (const v of Object.values(n)) {
+      if (Array.isArray(v)) for (const x of v) this.touch(scope, x as Node);
+      else if (v !== null && typeof v === 'object') this.touch(scope, v as Node);
+    }
+  }
+
   select(parent: Scope, stmt: Node): void {
-    const sel = stmt['SelectStmt'] as { withClause?: { ctes: Node[] }; fromClause?: Node[]; whereClause?: Node; larg?: Node; rarg?: Node; targetList?: Node[] } | undefined;
+    if (this.walked.has(stmt)) return;
+    this.walked.add(stmt);
+    const sel = stmt['SelectStmt'] as { withClause?: { ctes: Node[] }; fromClause?: Node[]; whereClause?: Node; larg?: Node; rarg?: Node; targetList?: Node[]; groupClause?: Node[]; havingClause?: Node; sortClause?: Node[] } | undefined;
     if (!sel) return;
     const scope: Scope = { names: new Map(), parent };
     for (const cte of sel.withClause?.ctes ?? []) {
@@ -300,7 +365,13 @@ class Walker {
     for (const t of sel.targetList ?? []) {
       const v = (t['ResTarget'] as { val?: Node } | undefined)?.val;
       if (v?.['SubLink']) this.sublink(scope, v['SubLink'] as { subLinkType: string; testexpr?: Node; subselect: Node });
+      else this.touch(scope, v);
     }
+    // What a query reads, beyond what it joins on.
+    this.touch(scope, sel.whereClause);
+    for (const g of sel.groupClause ?? []) this.touch(scope, g);
+    for (const o of sel.sortClause ?? []) this.touch(scope, o);
+    this.touch(scope, sel.havingClause);
   }
 
   statement(stmt: Node): void {
@@ -311,14 +382,26 @@ class Walker {
   private walk(stmt: Node): void {
     if (stmt['SelectStmt']) this.select({ names: new Map(), parent: null }, stmt);
     else if (stmt['InsertStmt']) {
-      const ins = stmt['InsertStmt'] as { selectStmt?: Node };
+      const ins = stmt['InsertStmt'] as { relation?: Node; cols?: Node[]; selectStmt?: Node };
       if (ins.selectStmt) this.select({ names: new Map(), parent: null }, ins.selectStmt);
+      // An INSERT writes the columns it names; a write is a use.
+      if (ins.relation) {
+        const scope: Scope = { names: new Map(), parent: null };
+        this.fromItem(scope, { RangeVar: ins.relation });
+        const table = [...scope.names.values()].find((t): t is TableRef => t !== null);
+        for (const c of ins.cols ?? []) {
+          const name = (c['ResTarget'] as { name?: string } | undefined)?.name;
+          if (table && name) this.mentions.add(`${table.schema}.${table.name}.${name}`);
+        }
+      }
     } else if (stmt['UpdateStmt'] || stmt['DeleteStmt']) {
       const u = (stmt['UpdateStmt'] ?? stmt['DeleteStmt']) as { relation: Node; fromClause?: Node[]; usingClause?: Node[]; whereClause?: Node };
       const scope: Scope = { names: new Map(), parent: null };
       this.fromItem(scope, { RangeVar: u.relation });
       for (const f of [...(u.fromClause ?? []), ...(u.usingClause ?? [])]) this.fromItem(scope, f);
       if (u.whereClause) this.conjuncts(scope, u.whereClause);
+      this.touch(scope, u.whereClause);
+      for (const t of (u as { targetList?: Node[] }).targetList ?? []) this.touch(scope, t);
     }
   }
 }
@@ -357,6 +440,7 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
   const p = await pg();
   const relationships: RelationshipClaim[] = [];
   const polymorphic: PolymorphicClaim[] = [];
+  const mentions = new Set<string>();
   let parsed = 0;
   let unparsed = 0;
   const text = normalisePlaceholders(dialect === 'mysql' ? mysqlQueryToPostgres(sql) : sql);
@@ -394,8 +478,9 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
     w.statement(s.stmt);
     relationships.push(...w.relationships);
     polymorphic.push(...w.polymorphic);
+    for (const m of w.mentions) mentions.add(m);
   }
-  return { relationships, polymorphic, parsed, unparsed };
+  return { relationships, polymorphic, parsed, unparsed, mentions: [...mentions].sort() };
 }
 
 function statementText(text: string, start: number): string {

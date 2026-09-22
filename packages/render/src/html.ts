@@ -65,6 +65,14 @@ function midpoint(points: readonly { x: number; y: number }[]): { x: number; y: 
 export interface RenderOptions {
   readonly title?: string;
   readonly findings?: readonly Finding[];
+  /**
+   * What a query log said was touched in its window (ADR-0003 #2). Given,
+   * every table and column *absent* from it is drawn faded and titled with
+   * the window's name — a fact about the window, never advice to drop
+   * anything. Absent, nothing is faded, because with no window there is no
+   * claim to make.
+   */
+  readonly usage?: { readonly touched: ReadonlySet<string>; readonly window: string };
 }
 
 export async function renderHtml(model: Model, options: RenderOptions = {}): Promise<string> {
@@ -72,7 +80,7 @@ export async function renderHtml(model: Model, options: RenderOptions = {}): Pro
   return htmlFor(model, layout, options);
 }
 
-export function svgFor(model: Model, layout: Layout): string {
+export function svgFor(model: Model, layout: Layout, usage?: RenderOptions['usage']): string {
   const tables = new Map(model.tables.map((t) => [tableKey(t), t]));
   const edgeById = new Map(model.edges.map((e) => [e.id, e]));
   const parts: string[] = [];
@@ -108,12 +116,15 @@ export function svgFor(model: Model, layout: Layout): string {
           .map((c, i) => {
             const y = pt.y + HEAD_H + ROW_H * i + ROW_H * 0.7;
             const key = t.primaryKey.includes(c.name) ? ' pk' : '';
-            return `<text class="col${key}" x="${(pt.x + PAD).toFixed(1)}" y="${y.toFixed(1)}" data-column="${attr(c.name)}"><tspan class="name">${esc(c.name)}</tspan> <tspan class="type">${esc(c.type)}${c.nullable ? '' : ' •'}</tspan></text>`;
+            const cold = usage !== undefined && !usage.touched.has(`${pt.id}.${c.name}`) ? ' unused' : '';
+            const why = cold === '' ? '' : `<title>No query named this column in ${esc(usage!.window)}. A fact about that window, not advice.</title>`;
+            return `<text class="col${key}${cold}" x="${(pt.x + PAD).toFixed(1)}" y="${y.toFixed(1)}" data-column="${attr(c.name)}">${why}<tspan class="name">${esc(c.name)}</tspan> <tspan class="type">${esc(c.type)}${c.nullable ? '' : ' •'}</tspan></text>`;
           })
           .join('')
       : '';
+    const coldTable = usage !== undefined && !usage.touched.has(pt.id) && (t?.columns ?? []).every((c) => !usage.touched.has(`${pt.id}.${c.name}`)) ? ' unused' : '';
     parts.push(
-      `<g class="table${pt.ghost ? ' ghost' : ''}" data-table="${attr(pt.id)}" tabindex="0" role="button" aria-label="${attr(pt.ghost ? `${pt.id}, queried but not declared` : `table ${pt.id}, ${t?.columns.length ?? 0} columns`)}" transform="translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)})">` +
+      `<g class="table${pt.ghost ? ' ghost' : ''}${coldTable}" data-table="${attr(pt.id)}" tabindex="0" role="button" aria-label="${attr(pt.ghost ? `${pt.id}, queried but not declared` : `table ${pt.id}, ${t?.columns.length ?? 0} columns`)}" transform="translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)})">` +
         `<rect class="box" width="${pt.width}" height="${pt.height}" rx="6"/>` +
         `<rect class="head" width="${pt.width}" height="${HEAD_H}" rx="6"/>` +
         `<text class="title" x="${PAD}" y="${HEAD_H * 0.68}">${esc(pt.id)}</text>` +
@@ -183,6 +194,11 @@ aside code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-s
 .col .type { fill: var(--muted); }
 .col.pk .name { text-decoration: underline; }
 .ghost .box { stroke-dasharray: 6 4; stroke: var(--ghost); fill: none; }
+/* ADR-0003 #2: what a query log's window did not touch, drawn faded. Opacity
+   only — never a colour that reads as an error, because unused in a window is
+   not a fault. */
+.col.unused { opacity: 0.38; }
+.table.unused .box, .table.unused .head, .table.unused .title { opacity: 0.45; }
 .ghost .head { fill: none; stroke: var(--ghost); stroke-dasharray: 6 4; }
 .ghost .title { fill: var(--ghost); font-style: italic; }
 .edge .hit { fill: none; stroke: transparent; stroke-width: 14; }
@@ -216,7 +232,7 @@ aside code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-s
   <button id="theme" type="button" aria-pressed="false">Dark</button>
 </header>
 <main>
-  <div id="stage">${svgFor(model, layout)}</div>
+  <div id="stage">${svgFor(model, layout, options.usage)}</div>
   <aside id="panel" aria-live="polite">
     <div class="legend">
       <span><svg width="36" height="10" aria-hidden="true"><line x1="0" y1="5" x2="36" y2="5" stroke="currentColor" stroke-width="2"/></svg> declared and used</span>
