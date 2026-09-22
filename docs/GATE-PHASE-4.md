@@ -13,21 +13,21 @@ the point.
 
 ---
 
-## The four
+## The five
 
-| | Mastodon | Outline | NetBox | memos |
-|---|---|---|---|---|
-| Stack | Rails 7.1 | Sequelize (TypeScript) | Django 5 | Go, raw SQL |
-| Schema read from | `db/schema.rb` | 57 model files | 38 model files | `store/migration/postgres` |
-| Tables | 116 | 41 | 91 | 17 |
-| SQL statements found | 22 in 17 files | 22 in 14 files | 3 in 6 files | **187 in 64 files** |
-| Statements refused | 2 | 2 | 4 | 120 |
-| `fail` findings | 0 | 0 | 0 | **4** |
-| `warn` findings | 13 | 38 | 0 | 3 |
-| `info` findings | 9 | 0 | 0 | 4 |
-| Exit code | 0 | 0 | 0 | **1** |
+| | Mastodon | Outline | NetBox | memos | Kratos |
+|---|---|---|---|---|---|
+| Stack | Rails 7.1 | Sequelize (TS) | Django 5 | Go, raw SQL | Go, raw SQL |
+| Schema read from | `db/schema.rb` | 57 model files | 38 model files | `store/migration/postgres` | 3483 migration files, one glob |
+| Tables | 116 | 41 | 91 | 17 | 31 |
+| SQL statements found | 22 in 17 files | 22 in 14 files | 3 in 6 files | **187 in 64 files** | **201 in 97 files** |
+| Statements refused | 2 | 2 | 4 | 120 | 45 |
+| `fail` findings | 0 | 0 | 0 | **4** | 0 |
+| `warn` findings | 13 | 38 | 0 | 3 | 30 |
+| `info` findings | 9 | 0 | 0 | 4 | 1 |
+| Exit code | 0 | 0 | 0 | **1** | 0 |
 
-All four were shallow clones of `main` on 2026-09-23. The NetBox tree was
+All five were shallow clones of `main` on 2026-09-23. The NetBox tree was
 partially materialised at the time of the run, so its 91 tables are a subset
 of the whole; the others are complete.
 
@@ -162,6 +162,37 @@ and the summary line says *120 not parsed (68 of them in backticks — set
 SQL* test, because that test allowed anything between `DELETE` and `FROM`;
 `DELETE FROM` is the only legal spelling.
 
+### Kratos — 0 findings, and the most valuable false positive of the run
+
+Ory Kratos is multi-tenant. Every table carries an `nid` with a declared
+foreign key to `networks.id`, and every query in the repository joins on it:
+
+```sql
+INNER JOIN identity_credentials
+    ON  identities.id = identity_credentials.identity_id
+    AND identities.nid = identity_credentials.nid
+```
+
+The check failed the build over the second condition — *`identities.nid →
+identity_credentials.nid`, which no constraint declares*. Every word true; no
+constraint relates those two columns and none should, because they are not
+related to each other, they are both related to `networks`.
+
+That is the worst kind of false positive: not rare, not subtle, and firing on
+**every query in the repository**. It is exactly the experience that makes a
+team turn a gate off and never turn it back on. ADR-0007 is the rule that came
+out of it — when both ends of an inferred edge already reference the same
+table, the finding is `shared_parent`, it is an `info`, and its sentence says
+what the join is. Kratos now reports zero failures, which is the truth about
+its schema.
+
+Kratos also cost three more bugs before it would run at all: an **empty
+migration file** ended the whole run with *Query cannot be empty*; its **3483
+migration files are one per dialect** in a single directory, so a `migrations`
+entry now takes a filename glob; and it **vendors another tool's migration
+test stubs**, whose `.down.sql` files were read as application queries and
+produced six failing findings about tables a down script drops.
+
 ### NetBox — nothing, correctly
 
 91 tables, 3 SQL statements in the whole repository, none of them naming a
@@ -176,7 +207,8 @@ exist.
 
 ## What the three repositories changed in the tool
 
-Sixteen fixes, none of which the 200-table fixture corpus had ever provoked.
+Twenty-one fixes, none of which the 200-table fixture corpus had ever
+provoked.
 The full list is in `CHANGELOG.md`; the ones that mattered most:
 
 1. **A check that read no schema went green.** Exit 0 and *No findings* for a
@@ -195,7 +227,9 @@ The full list is in `CHANGELOG.md`; the ones that mattered most:
 ## What a person still has to do
 
 - Find two more repositories like memos — applications that write their own
-  SQL — and run them. That is what is left of the gate, and memos shows it is
+  SQL *and* leave relationships undeclared. Kratos writes its own SQL and
+  declares its constraints properly, so it produced none; that is a pass for
+  Kratos and not one for the gate. That is what is left of the gate, and memos shows it is
   reachable. Or decide the gate should ask for a query log instead, and say
   which in `docs/ROADMAP.md`.
 - Read the nine Mastodon findings above against `db/schema.rb` and disagree

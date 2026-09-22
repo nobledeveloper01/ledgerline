@@ -25,6 +25,12 @@ export interface Policy {
   readonly orphanSide: Severity;
   /** A `<x>_id` column with no relationship, or a relationship whose column name says another table (ADR-0003 #8). */
   readonly namingDrift: Severity;
+  /**
+   * A join between two columns that already point at the *same* third table
+   * (ADR-0007). It is a correlation through a shared parent — a tenant id, a
+   * partition key — and not a missing relationship, so it never fails.
+   */
+  readonly sharedParent: Severity;
 }
 
 export const PULL_REQUEST_POLICY: Policy = {
@@ -35,11 +41,12 @@ export const PULL_REQUEST_POLICY: Policy = {
   tableRemoved: 'warn',
   orphanSide: 'warn',
   namingDrift: 'info',
+  sharedParent: 'info',
 };
 
 export interface Finding {
   readonly severity: Exclude<Severity, 'ignore'>;
-  readonly code: 'used_undeclared' | 'declared_unused' | 'undeclared_table' | 'edge_removed' | 'table_removed' | 'orphan_side' | 'name_without_join' | 'name_disagrees';
+  readonly code: 'used_undeclared' | 'declared_unused' | 'undeclared_table' | 'edge_removed' | 'table_removed' | 'orphan_side' | 'name_without_join' | 'name_disagrees' | 'shared_parent';
   readonly sentence: string;
   /** Where to look: the evidence sources, in order. */
   readonly where: readonly string[];
@@ -92,8 +99,53 @@ export function findings(model: Model, policy: Policy = PULL_REQUEST_POLICY, sam
    * table vouch for every table that points at it.
    */
   const inSample = (e: Edge): boolean => sampled === null || e.from.some((c) => sampled.has(tableKey(c)));
+
+  /*
+   * Where each column already points, from the constraints (ADR-0007).
+   *
+   * A multi-tenant application joins on its tenant column in every query it
+   * has. Ory Kratos joins `identities.nid = identity_credentials.nid`, and
+   * both of those columns have a declared foreign key to `networks.id`. No
+   * constraint relates the two of them to each other and none should: the
+   * join is a correlation through a shared parent, and calling it a missing
+   * relationship is the false positive that makes a team turn the gate off.
+   */
+  const declaredTargets = new Map<string, Set<string>>();
+  for (const e of model.edges) {
+    if (e.state === 'used_undeclared') continue;
+    const target = e.to[0];
+    if (target === undefined) continue;
+    for (const c of e.from) {
+      const key = `${tableKey(c)}.${c.column}`;
+      const set = declaredTargets.get(key) ?? new Set<string>();
+      set.add(tableKey(target));
+      declaredTargets.set(key, set);
+    }
+  }
+  const sharedParentOf = (e: Edge): string | null => {
+    const a = e.from[0];
+    const b = e.to[0];
+    if (a === undefined || b === undefined || e.from.length !== 1 || e.to.length !== 1) return null;
+    const left = declaredTargets.get(`${tableKey(a)}.${a.column}`);
+    const right = declaredTargets.get(`${tableKey(b)}.${b.column}`);
+    if (left === undefined || right === undefined) return null;
+    for (const t of left) if (right.has(t)) return t;
+    return null;
+  };
   const schema: DeclaredSchema = { tables: model.tables, foreignKeys: [] };
   for (const e of model.edges) {
+    const shared = e.state === 'used_undeclared' ? sharedParentOf(e) : null;
+    if (shared !== null) {
+      if (policy.sharedParent !== 'ignore') {
+        out.push({
+          severity: policy.sharedParent,
+          code: 'shared_parent',
+          sentence: `${cols(e, 'from')} and ${cols(e, 'to')} are joined, and both already reference ${shared}. That is a correlation through a shared parent, not a missing relationship.`,
+          where: where(e),
+        });
+      }
+      continue;
+    }
     if (e.state === 'used_undeclared' && policy.usedUndeclared !== 'ignore') {
       const query = e.evidence.find((v) => v.kind === 'query') ?? e.evidence[0];
       const at = query && query.line !== undefined ? `${query.source}:${query.line}` : (query?.source ?? 'a query');

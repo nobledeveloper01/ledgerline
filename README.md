@@ -92,14 +92,16 @@ a relation to a class in a file the reader never saw — the line is reported as
 unread and no edge is drawn. An invented edge is worse than a missing one,
 because the diagram would look complete.
 
-**What is not done:** Phase 4's gate. The check *has* been run against four
-real public repositories — Mastodon, Outline, NetBox and memos — and every
+**What is not done:** Phase 4's gate. The check *has* been run against five
+real public repositories — Mastodon, Outline, NetBox, memos and Ory Kratos —
+and every
 finding checked against the repository's own schema file.
 [`docs/GATE-PHASE-4.md`](docs/GATE-PHASE-4.md) is the whole of it: nine true
 findings on Mastodon, **four true undeclared relationships on memos with the
 file and line of the join that relies on each**, one false finding found and
-fixed, and sixteen bugs in this tool. The gate asks for three such
-repositories and one has been found, so it is still open.
+fixed, and twenty-one bugs in this tool — including a false positive on
+Kratos that fired on every query in the repository (ADR-0007). The gate asks
+for three such repositories and one has been found, so it is still open.
 
 ```
 npx ledgerline check
@@ -109,7 +111,7 @@ npx ledgerline check
 three of them 200-world properties · 6 fixtures diffed on every build, two of
 them 200 tables — the same schema in PostgreSQL and in MySQL · 10 gates, four
 of them — the boundary, reachability, the fixtures and the tool itself — broken
-on purpose every run · 6 ADRs · 10 commands · 8 places a schema can come
+on purpose every run · 7 ADRs · 10 commands · 8 places a schema can come
 from, and none of them is run.
 
 | | |

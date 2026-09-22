@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { EMPTY_SCHEMA, reconcile, type Claims, type DeclaredSchema, type Model } from '@ledgerline/model';
-import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parseEfCoreSnapshot, parsePrisma, parseRailsSchema, parseSequelizeModels, parseSqlAlchemyModels, parseTypeOrmEntities, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
+import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parseEfCoreSnapshot, parsePrisma, parseRailsSchema, parseSequelizeModels, splitGlob, parseSqlAlchemyModels, parseTypeOrmEntities, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
 import { readFileSync } from 'node:fs';
 
 import type { Resolved } from './config.ts';
@@ -55,10 +55,13 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
   }
   const parts: DeclaredSchema[] = [];
   const names: string[] = [];
-  for (const dir of config.migrations) {
+  for (const entry of config.migrations) {
+    // An entry may end in a filename glob, for a directory that holds one
+    // file per dialect.
+    const { dir, match } = splitGlob(entry);
     const full = join(config.root, dir);
     if (!existsSync(full)) continue;
-    const part = await schemaFromMigrations(full, config.dialect);
+    const part = await schemaFromMigrations(full, config.dialectOf(dir), match);
     // A migrations directory that yields no table is not a schema. Rails and
     // Django put *Ruby* and *Python* in `db/migrate`, so the directory exists,
     // matches, and contains not one line this tool can read — and the answer
@@ -66,7 +69,7 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
     // emptiness, never on existence.
     if (part.tables.length === 0) continue;
     parts.push(part);
-    names.push(dir);
+    names.push(entry);
   }
   // A repository has one declared schema; migrations are the truth when they
   // exist, and the ORM file is the truth when they do not. Read in that order,

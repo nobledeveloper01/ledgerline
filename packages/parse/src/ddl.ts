@@ -118,6 +118,11 @@ export class SchemaBuilder {
   private readonly foreignKeys = new Map<string, ForeignKey>();
 
   async apply(sql: string, source: string): Promise<void> {
+    // An empty migration is a real thing — a placeholder a tool generated, a
+    // file whose whole body is a comment. Ory Kratos has several, and one of
+    // them ended the entire run with *Query cannot be empty* before a single
+    // finding was printed. A file with nothing in it changes nothing.
+    if (sql.replace(/--[^\n]*|\/\*[\s\S]*?\*\//g, '').trim().length === 0) return;
     const parsed = await parseSql(sql, source);
     for (const raw of parsed.stmts) this.statement(raw);
   }

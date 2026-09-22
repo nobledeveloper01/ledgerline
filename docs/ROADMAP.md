@@ -162,11 +162,12 @@ this repository.*
 
 **The gate has been run against three repositories, and is still not
 cleared** — read `docs/GATE-PHASE-4.md`, which is the evidence and not the
-verdict. Mastodon, Outline, NetBox and memos were run on 2026-09-23;
+verdict. Mastodon, Outline, NetBox, memos and Kratos were run on 2026-09-23;
 every finding was checked against the repository's own schema file; nine
 findings on Mastodon and four on memos were confirmed true, and one false one
-was found and fixed. Sixteen bugs in this tool came out of it, including a
-check that went green on a repository it could not read.
+was found and fixed. Twenty-one bugs in this tool came out of it, including a
+check that went green on a repository it could not read, and a false positive
+on Kratos that fired on every query in the repository (ADR-0007).
 
 **A fourth repository does meet it.** memos — a Go application that writes its
 own SQL — produced four failing findings, each a real join in real source that

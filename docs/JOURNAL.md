@@ -166,10 +166,39 @@ four hours after the *looks like SQL* test was supposedly fixed, because the
 test allowed anything between `DELETE` and `FROM`. `DELETE FROM` is the only
 legal spelling. Every heuristic gets one more counterexample than you expect.
 
+### And Kratos, which produced the false positive worth the whole day
+
+Ory Kratos is multi-tenant: every table carries an `nid` with a declared
+foreign key to `networks.id`, and every query joins on it. The check failed
+the build over `identities.nid → identity_credentials.nid` — a true sentence
+about two columns that are not related to each other and are both related to
+`networks`.
+
+It is the worst kind of false positive. Not rare, not subtle, firing on
+**every query in the repository**, and the exact experience that makes a team
+turn a gate off and never turn it back on. ADR-0007: when both ends of an
+inferred edge already reference the same table, say so, and never fail. The
+rule reads only what the constraints already declare — no list of names like
+`tenant_id` to guess at, which is the thing this product refuses to be.
+
+Kratos cost three more bugs before it would run at all. An **empty migration
+file** ended the entire run with *Query cannot be empty*. Its **3483 migration
+files are one per dialect** in one directory, so folding them produced a
+schema that was three schemas, and a `migrations` entry now takes a filename
+glob. And it **vendors another tool's migration test stubs**, whose
+`.down.sql` files were read as application queries and produced six failing
+findings about tables that a down script drops — so any directory named
+`migrations` is now out of the query scan, wherever it lives.
+
+Zero failures on Kratos afterwards, which is the truth about its schema: it
+writes its own SQL *and* declares its constraints. Good for Kratos, and not a
+pass for the gate, which needs repositories that do the first and not the
+second.
+
 ### Still open
 
-- The gate. Four repositories are run, every finding is checked, and the
-  evidence is in `docs/GATE-PHASE-4.md`. One of the four meets the gate's
+- The gate. Five repositories are run, every finding is checked, and the
+  evidence is in `docs/GATE-PHASE-4.md`. One of the five meets the gate's
   actual criterion; it asks for three. What is left is finding two more
   applications that write their own SQL — a search, not a script — and a
   person reading the findings. It is still not claimed.

@@ -48,7 +48,7 @@ test('a dropped column and a removed table are in the diff, and the removal is a
 
 test('a policy can silence a class of finding without touching the model', () => {
   const m = reconcile(before, { relationships: [theJoin], polymorphic: [] });
-  assert.equal(findings(m, { usedUndeclared: 'ignore', declaredUnused: 'warn', undeclaredTable: 'fail', edgeRemoved: 'warn', tableRemoved: 'warn', orphanSide: 'ignore', namingDrift: 'ignore' }).length, 0);
+  assert.equal(findings(m, { usedUndeclared: 'ignore', declaredUnused: 'warn', undeclaredTable: 'fail', edgeRemoved: 'warn', tableRemoved: 'warn', orphanSide: 'ignore', namingDrift: 'ignore', sharedParent: 'ignore' }).length, 0);
 });
 
 test('the orphan side: a nullable referencing column with no constraint is its own warning, with the join as evidence', () => {
@@ -84,4 +84,33 @@ test('names that lie: an _id column nothing relates, and one that relates to a t
     'public.orders.user_id is named like a reference to users and no constraint or query relates them.',
   ]);
   assert.ok(f.filter((x) => x.code === 'name_without_join').every((x) => x.severity === 'info'));
+});
+
+test('a join between two columns that both point at the same third table is a shared parent, never a failure', () => {
+  // Ory Kratos joins `identities.nid = identity_credentials.nid` in every
+  // query it has, and both columns have a declared foreign key to
+  // `networks.id`. Reporting that as a missing relationship is the false
+  // positive that makes a team turn the gate off.
+  const table = (name: string, columns: string[]) => ({ schema: 'public', name, columns: columns.map((c) => ({ name: c, type: 'uuid', nullable: false })), primaryKey: ['id'], uniques: [] });
+  const schema = {
+    tables: [table('networks', ['id']), table('identities', ['id', 'nid']), table('identity_credentials', ['id', 'nid', 'identity_id'])],
+    foreignKeys: [
+      { name: 'identities_nid_fk', from: [{ schema: 'public', name: 'identities', column: 'nid' }], to: [{ schema: 'public', name: 'networks', column: 'id' }] },
+      { name: 'identity_credentials_nid_fk', from: [{ schema: 'public', name: 'identity_credentials', column: 'nid' }], to: [{ schema: 'public', name: 'networks', column: 'id' }] },
+    ],
+  };
+  const tenancyJoin = {
+    from: [{ schema: 'public', name: 'identities', column: 'nid' }],
+    to: [{ schema: 'public', name: 'identity_credentials', column: 'nid' }],
+    directed: false,
+    evidence: { kind: 'query' as const, source: 'persister_identity.go', line: 347, text: 'SELECT ...' },
+  };
+  const m = reconcile(schema, { relationships: [tenancyJoin], polymorphic: [] });
+  const f = findings(m);
+  const shared = f.filter((x) => x.code === 'shared_parent');
+  assert.equal(shared.length, 1);
+  assert.equal(shared[0]!.severity, 'info');
+  assert.match(shared[0]!.sentence, /both already reference public\.networks/);
+  assert.equal(f.filter((x) => x.code === 'used_undeclared').length, 0, 'and it is not also reported as a missing relationship');
+  assert.ok(!fails(f), 'a shared parent never fails a build');
 });

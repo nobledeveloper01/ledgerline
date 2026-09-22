@@ -32,6 +32,27 @@ described.
   resolving it against the inner scope invented a `documents.documentId` and
   a self-join that does not exist. An unqualified column now walks out through
   the enclosing scopes, which is what a correlated reference is.
+- **A join through a shared parent is no longer a failure** (ADR-0007). Ory
+  Kratos is multi-tenant: every table carries an `nid` with a declared foreign
+  key to `networks.id`, and every query joins on it. The check failed the
+  build over `identities.nid → identity_credentials.nid` — true, and the
+  worst kind of false positive, because it fires on every query in the
+  repository. When both ends of an inferred edge already reference the same
+  table the finding is `shared_parent`, it is an `info`, and its sentence says
+  what the join actually is.
+- **An empty migration file no longer ends the run.** Kratos ships several
+  placeholder `.sql` files, and one of them stopped `check` with *Query cannot
+  be empty* before a single finding was printed.
+- **A `migrations` entry may end in a filename glob.** Kratos keeps 3483
+  migration files in one directory, one per dialect —
+  `…_identities.postgres.up.sql` beside `…_identities.mysql.up.sql` — and
+  folding all of them together produces a schema that is three schemas.
+  `"migrations": ["persistence/sql/migrations/sql/*.postgres.up.sql"]` now
+  works.
+- **Any directory named `migrations` or `migrate` is skipped by the query
+  scan**, not only the configured ones. Kratos vendors another tool's
+  migration *test stubs*, and reading their `.down.sql` files as queries
+  produced six failing findings about tables that a down script drops.
 - **One repository can hold more than one dialect.** memos keeps
   `store/db/postgres`, `store/db/mysql` and `store/db/sqlite` side by side,
   and `dialect` was one setting for a whole repository — an assumption, not a
