@@ -49,13 +49,35 @@ function merge(a: Gathered, b: QueryClaims): Gathered {
   };
 }
 
+/**
+ * Walking a repository, without trusting it to hold still.
+ *
+ * A dangling symlink, a file a build deleted between the listing and the
+ * stat, a directory the user cannot read: every one of these is ordinary in a
+ * real checkout, and none of them is a reason to abandon the run. An
+ * unreadable entry is skipped, because the alternative — the whole command
+ * exiting 70 on one broken link — is how a tool becomes something people stop
+ * putting in their pipeline.
+ */
 function walk(dir: string, keep: (name: string) => boolean, skip: RegExp = /(^|[\\/])(node_modules|\.git|dist|build|vendor|\.next|target)([\\/]|$)/): string[] {
   const out: string[] = [];
   const visit = (d: string): void => {
-    for (const entry of readdirSync(d).sort()) {
+    let entries: string[];
+    try {
+      entries = readdirSync(d).sort();
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
       const full = join(d, entry);
       if (skip.test(full)) continue;
-      if (statSync(full).isDirectory()) visit(full);
+      let directory: boolean;
+      try {
+        directory = statSync(full).isDirectory();
+      } catch {
+        continue;
+      }
+      if (directory) visit(full);
       else if (keep(entry)) out.push(full);
     }
   };
@@ -63,11 +85,22 @@ function walk(dir: string, keep: (name: string) => boolean, skip: RegExp = /(^|[
   return out;
 }
 
+/** A file that vanished or cannot be read is skipped, for the reason `walk` gives. */
+function readOrSkip(file: string): string | null {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
 /** `.sql` files under `dir`, each statement with its line. */
 export async function claimsFromSqlFiles(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres'): Promise<Gathered> {
   let out = NONE;
   for (const file of walk(dir, (n) => n.toLowerCase().endsWith('.sql'))) {
-    out = merge(out, await claimsFromSql(readFileSync(file, 'utf8'), { source: relative(root, file), line: 1 }, schema, dialect));
+    const text = readOrSkip(file);
+    if (text === null) continue;
+    out = merge(out, await claimsFromSql(text, { source: relative(root, file), line: 1 }, schema, dialect));
   }
   return out;
 }
@@ -207,7 +240,8 @@ export function stringLiterals(src: string): Literal[] {
 export async function claimsFromSource(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres'): Promise<Gathered> {
   let out = NONE;
   for (const file of walk(dir, (nm) => SOURCE_EXT.has(nm.slice(nm.lastIndexOf('.')).toLowerCase()))) {
-    const src = readFileSync(file, 'utf8');
+    const src = readOrSkip(file);
+    if (src === null) continue;
     let any = false;
     for (const lit of stringLiterals(src)) {
       if (!LOOKS_LIKE_SQL.test(lit.text)) continue;

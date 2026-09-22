@@ -31,7 +31,7 @@ import { badgeLine, mermaidFor, renderHtml } from '@ledgerline/render';
 import { historyOfDirectory, readModel, serializeModel, writeModel } from '@ledgerline/sources';
 
 import { buildModel, type BuildOptions } from './build.ts';
-import { resolveConfig, type Resolved } from './config.ts';
+import { resolveConfig, CONFIG_FILE, type Resolved } from './config.ts';
 
 export interface Outcome {
   readonly code: number;
@@ -81,7 +81,33 @@ export async function check(options: CommonOptions & { write?: boolean; baseline
   const config = settings(options);
   const built = await buildModel(config, options);
   const lines: string[] = [readSummary(built)];
-  const all = sortFindings(modelFindings(built.model, config.policy));
+
+  /*
+   * Nothing read is not nothing wrong.
+   *
+   * A check that found no schema used to print *No findings. Every
+   * relationship the queries rely on is declared.* and exit 0 — a green tick
+   * for a repository it could not read a single table of. In a pipeline that
+   * is the worst failure this tool can have: the migrations move, the tool
+   * finds none, and the build goes green for ever after. So a check that read
+   * no schema fails, and says where it looked.
+   */
+  if (built.schema.tables.length === 0) {
+    return {
+      code: 1,
+      lines: [
+        ...lines,
+        'fail: No schema was found, so nothing was checked. This is a failure, not a pass — a check that reads nothing must not go green.',
+        `    looked for migrations in: ${config.migrations.length > 0 ? config.migrations.join(', ') : 'none of the usual places'}`,
+        `    looked for an ORM schema in: ${[config.prisma, config.rails, config.efcore, ...config.django, ...config.sqlalchemy, ...(config.typeorm.length > 0 ? [`${config.typeorm.length} TypeORM entity files`] : [])].filter((x) => x !== null && x !== undefined).join(', ') || 'none of the usual places'}`,
+        `    set "migrations" in ${CONFIG_FILE}, or pass --database-url.`,
+      ],
+    };
+  }
+
+  const sampled = sampledTables(built.model, built.mentions);
+  const all = sortFindings(modelFindings(built.model, config.policy, sampled));
+  const unsampled = built.model.tables.filter((t) => !sampled.has(tableKey(t)));
 
   const baselinePath = join(config.root, config.baseline);
   const baseline = readBaseline(baselinePath);
@@ -112,7 +138,21 @@ export async function check(options: CommonOptions & { write?: boolean; baseline
     if (considered.accepted.length > 0) lines.push(`${considered.accepted.length} finding${considered.accepted.length === 1 ? '' : 's'} accepted by ${config.baseline}`);
     if (considered.fixed.length > 0) lines.push(`${considered.fixed.length} baseline entr${considered.fixed.length === 1 ? 'y is' : 'ies are'} fixed — run ledgerline baseline to shrink it`);
   }
-  if (active.length === 0) lines.push('No findings. Every relationship the queries rely on is declared.');
+  if (unsampled.length > 0) {
+    lines.push(
+      `info: ${unsampled.length} of ${built.model.tables.length} tables were named by no query that was read, so nothing is said about what their relationships are for. ` +
+        (built.statementsParsed === 0
+          ? 'No query was read at all.'
+          : `${built.statementsParsed} statement${built.statementsParsed === 1 ? '' : 's'} were read; an application that speaks to its database through an ORM leaves little SQL to find. Point "logs" at a query log for the real answer.`),
+    );
+  }
+  if (active.length === 0) {
+    lines.push(
+      built.statementsParsed === 0
+        ? `No findings — but no query was read either, so this says only that ${built.schema.tables.length} declared tables disagree with nothing. Point "queries" at the SQL to get a claim worth checking.`
+        : 'No findings. Every relationship the queries rely on is declared.',
+    );
+  }
   const stale = !options.write && existsSync(modelPath) && !isEmptyDiff(diff(readModel(modelPath), built.model));
   return { code: fails(active) || stale ? 1 : 0, lines };
 }
@@ -214,6 +254,16 @@ export async function blast(table: string, options: CommonOptions = {}): Promise
       ...b.places.map((p) => `  ${p}`),
     ],
   };
+}
+
+/** The tables some query that was read actually named; see `findings`' third argument. */
+export function sampledTables(model: Model, mentions: readonly string[]): Set<string> {
+  const out = new Set<string>();
+  for (const m of expandStars(model, mentions)) {
+    const parts = m.split('.');
+    if (parts.length >= 2) out.add(`${parts[0]}.${parts[1]}`);
+  }
+  return out;
 }
 
 /**

@@ -55,7 +55,14 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
   for (const dir of config.migrations) {
     const full = join(config.root, dir);
     if (!existsSync(full)) continue;
-    parts.push(await schemaFromMigrations(full, config.dialect));
+    const part = await schemaFromMigrations(full, config.dialect);
+    // A migrations directory that yields no table is not a schema. Rails and
+    // Django put *Ruby* and *Python* in `db/migrate`, so the directory exists,
+    // matches, and contains not one line this tool can read — and the answer
+    // is `db/schema.rb` sitting beside it. The fallback below has to turn on
+    // emptiness, never on existence.
+    if (part.tables.length === 0) continue;
+    parts.push(part);
     names.push(dir);
   }
   // A repository has one declared schema; migrations are the truth when they

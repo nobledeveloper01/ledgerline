@@ -66,8 +66,32 @@ function tablesNamedBy(column: string): string[] {
 }
 
 /** Findings about the model as it stands — the drift the schema has right now. */
-export function findings(model: Model, policy: Policy = PULL_REQUEST_POLICY): Finding[] {
+/**
+ * What the queries that were read actually touched, by table key.
+ *
+ * Given, `declared_unused` is only claimed about a table some query named.
+ * The rule this encodes came out of running the check on Mastodon: a Rails
+ * application speaks to its database through ActiveRecord, so 84 SQL
+ * statements were found across 613 files, and the tool warned about 148
+ * relationships being *used by no query that was read* — each of them true,
+ * and all of them worthless, because no query touching those tables was read
+ * either. Absence of a query is not evidence of an unused relationship when
+ * the sample is empty. Where the sample is empty the tool must say nothing.
+ */
+export type Sampled = ReadonlySet<string>;
+
+export function findings(model: Model, policy: Policy = PULL_REQUEST_POLICY, sampled: Sampled | null = null): Finding[] {
   const out: Finding[] = [];
+  /**
+   * Whether a query that was read touched the table that *carries* the key.
+   *
+   * The referencing side only. A join over `account_aliases.account_id` would
+   * appear in a query that reads `account_aliases`; that `accounts` is read
+   * everywhere else in the application says nothing about whether this
+   * particular relationship is used, and counting it would let one popular
+   * table vouch for every table that points at it.
+   */
+  const inSample = (e: Edge): boolean => sampled === null || e.from.some((c) => sampled.has(tableKey(c)));
   const schema: DeclaredSchema = { tables: model.tables, foreignKeys: [] };
   for (const e of model.edges) {
     if (e.state === 'used_undeclared' && policy.usedUndeclared !== 'ignore') {
@@ -92,7 +116,7 @@ export function findings(model: Model, policy: Policy = PULL_REQUEST_POLICY): Fi
         });
       }
     }
-    if (e.state === 'declared_unused' && policy.declaredUnused !== 'ignore') {
+    if (e.state === 'declared_unused' && policy.declaredUnused !== 'ignore' && inSample(e)) {
       out.push({
         severity: policy.declaredUnused,
         code: 'declared_unused',

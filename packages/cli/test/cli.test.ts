@@ -170,3 +170,49 @@ test('with no query log there is no window, so nothing is faded', async () => {
   assert.ok(!html.includes('No query named this column in'));
   rmSync(root, { recursive: true, force: true });
 });
+
+test('a check that read no schema fails, because a check that reads nothing must not go green', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ledgerline-empty-'));
+  writeFileSync(join(root, 'README.md'), '# nothing here\n');
+  const out = await check({ root });
+  const text = out.lines.join('\n');
+  assert.equal(out.code, 1, 'silently passing on a repository it could not read is the worst failure this tool can have');
+  assert.match(text, /fail: No schema was found, so nothing was checked/);
+  assert.match(text, /looked for migrations in/);
+  assert.ok(!text.includes('Every relationship the queries rely on is declared'));
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('a migrations directory full of Ruby is not a schema: the reader falls through to schema.rb', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ledgerline-rails-'));
+  mkdirSync(join(root, 'db', 'migrate'), { recursive: true });
+  // What Rails actually puts there. Not one line of it is SQL.
+  writeFileSync(join(root, 'db', 'migrate', '20260101_create_users.rb'), 'class CreateUsers < ActiveRecord::Migration[7.1]\n  def change\n    create_table :users\n  end\nend\n');
+  writeFileSync(
+    join(root, 'db', 'schema.rb'),
+    'ActiveRecord::Schema[7.1].define(version: 1) do\n  create_table "users", force: :cascade do |t|\n    t.string "email"\n  end\n  create_table "orders", force: :cascade do |t|\n    t.bigint "user_id"\n  end\n  add_foreign_key "orders", "users"\nend\n',
+  );
+  const out = await check({ root });
+  const text = out.lines.join('\n');
+  assert.match(text, /schema from db\/schema\.rb/, 'the directory existed and yielded nothing, so it is not the schema');
+  assert.ok(!text.includes('No schema was found'));
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('declared-and-unused is claimed only about tables some query actually named', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ledgerline-sample-'));
+  mkdirSync(join(root, 'migrations'), { recursive: true });
+  writeFileSync(
+    join(root, 'migrations', '001.sql'),
+    ['CREATE TABLE users (id serial PRIMARY KEY);', 'CREATE TABLE orders (id serial PRIMARY KEY, user_id integer REFERENCES users (id));', 'CREATE TABLE audits (id serial PRIMARY KEY, user_id integer REFERENCES users (id));'].join('\n'),
+  );
+  mkdirSync(join(root, 'app'), { recursive: true });
+  // A query that reads `orders` and never joins over its key; `audits` is never read at all.
+  writeFileSync(join(root, 'app', 'q.sql'), 'SELECT id FROM orders WHERE id > 1;\n');
+
+  const text = (await check({ root })).lines.join('\n');
+  assert.match(text, /orders\.user_id → public\.users\.id is declared by .* and used by no query that was read/, 'orders was read, and the join was not there — that is evidence');
+  assert.ok(!text.includes('audits.user_id'), 'audits was never read, so nothing is known about it and nothing is said');
+  assert.match(text, /tables were named by no query that was read/);
+  rmSync(root, { recursive: true, force: true });
+});

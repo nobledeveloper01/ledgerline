@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -56,4 +58,21 @@ test('with a schema, unqualified columns resolve; the whole repository reconcile
   assert.equal(states['audit_log.order_id=orders.id'], 'used_undeclared');
   assert.deepEqual(m.undeclaredTables.map((t) => t.name), ['audit_log', 'comments', 'posts']);
   assert.ok(m.edges.find((e) => e.id.includes('orders.user_id'))!.support >= 2, 'the same join in the report and the service is one edge with two places');
+});
+
+test('a repository that does not hold still is still read: a dangling symlink, an unreadable directory, a file that vanished', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ledgerline-walk-'));
+  mkdirSync(join(dir, 'sql'));
+  writeFileSync(join(dir, 'sql', 'good.sql'), 'SELECT 1 FROM orders o JOIN users u ON u.id = o.user_id;');
+  symlinkSync(join(dir, 'sql', 'gone.sql'), join(dir, 'sql', 'dangling.sql'));
+  mkdirSync(join(dir, 'sql', 'locked'));
+  writeFileSync(join(dir, 'sql', 'locked', 'hidden.sql'), 'SELECT 1;');
+  chmodSync(join(dir, 'sql', 'locked'), 0o000);
+
+  const g = await claimsFromSqlFiles(join(dir, 'sql'));
+  // The one readable file was read; nothing threw.
+  assert.equal(g.relationships.length, 1);
+
+  chmodSync(join(dir, 'sql', 'locked'), 0o755);
+  rmSync(dir, { recursive: true, force: true });
 });

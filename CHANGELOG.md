@@ -6,6 +6,33 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
 
 ### Fixed
 
+Everything in this group was found by running `ledgerline check` on Mastodon —
+a real Rails application with 116 tables — which is Phase 4's exit gate being
+done rather than described.
+
+- **A check that read no schema now fails.** It used to print *No findings.
+  Every relationship the queries rely on is declared.* and exit 0 for a
+  repository it had not read a single table of. In a pipeline that is the
+  worst failure this tool can have: the migrations move, the tool finds none,
+  and the build is green for ever after. It now fails and prints where it
+  looked.
+- **A migrations directory that yields no table is not a schema.** Rails puts
+  *Ruby* in `db/migrate`, so the directory existed, matched, and contained
+  nothing this tool could read — while `db/schema.rb` sat beside it. The
+  fallback to an ORM file now turns on emptiness, not existence.
+- **Declared-and-unused is only claimed about a table some query named.**
+  Mastodon produced 148 warnings that a relationship was *used by no query
+  that was read*; every one was true and none was worth reading, because no
+  query touching those tables was read either — an ActiveRecord application
+  leaves almost no SQL to find. Absence of a query is not evidence of an
+  unused relationship when the sample is empty. The count of tables nothing
+  read is now stated once, as a fact about the sample. On Mastodon that turns
+  148 warnings into 34, all of them about tables the queries really did read.
+- **A repository that does not hold still is still read.** A dangling symlink
+  crashed the whole run with exit 70. An unreadable directory, a vanished
+  file and a broken link are now skipped, because one broken link is not a
+  reason to abandon the other six hundred files.
+
 - `EMPTY_SCHEMA` and the baseline's format version were each spelled out a
   second time by hand in another package, which is two places for one fact to
   live and drift. Both now come from the one place that defines them.
