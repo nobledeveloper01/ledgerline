@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# The whole gate before a push, so CI is a confirmation and not a discovery.
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)" || exit 0
+make ci

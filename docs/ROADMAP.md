@@ -9,7 +9,7 @@ toolchain and every dependency, with the reason for each, is `docs/TOOLCHAIN.md`
 
 ---
 
-## Phase 0 — Foundation · **current**
+## Phase 0 — Foundation · **cleared 2026-09-22**
 
 The repository, the gates, and the one decision the whole product rests on: the
 model is a pure package that imports nothing.
@@ -28,7 +28,13 @@ model is a pure package that imports nothing.
 gate has been broken on purpose and seen to fail; a fixture with two tables and one
 join produces the model the fixture file says it should.*
 
-## Phase 1 — Schema → model
+**Cleared.** `make ci` green locally and on CI; `make boundary` plants a `node:fs`
+import in the model and asserts the lint fails, every run; `fixtures-check` was
+broken by changing one line number in a fixture and refused, then restored. The
+model went further than the gate asked: reconcile, diff and findings are all
+written and tested, so Phase 1 has only to produce their inputs.
+
+## Phase 1 — Schema → model · **current**
 
 Reading what the database declares.
 

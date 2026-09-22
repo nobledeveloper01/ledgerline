@@ -1,0 +1,20 @@
+{
+  "name": "@ledgerline/model",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The rules: what a relationship is, how declared and used reconcile, what drift is. Imports nothing.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test 'test/**/*.test.ts'",
+    "lint": "eslint src test"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2"
+  }
+}

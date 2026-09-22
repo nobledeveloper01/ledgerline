@@ -21,8 +21,13 @@ npx ledgerline check          # one command, no database, no account
 
 ## Status
 
-**Phase 0 of 5 — foundation.** The product statement, roadmap and toolchain are
-written; the workspace and gates come next. Nothing is usable yet.
+**Phase 1 of 5 — schema → model.** The rules exist and are tested: what a
+relationship is, how declared and used reconcile into three edge states, what
+changed between two models, and the sentence each finding prints. Nothing reads a
+real schema yet; that is this phase. Nothing is usable yet.
+
+**The numbers.** 11 model tests · 3 fixtures diffed on every build · 6 gates, the
+boundary gate broken on purpose every run · 1 ADR.
 
 | | |
 |---|---|

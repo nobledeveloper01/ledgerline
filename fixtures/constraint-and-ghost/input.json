@@ -1,0 +1,18 @@
+{
+  "schema": {
+    "tables": [
+      { "schema": "public", "name": "orders", "columns": [{ "name": "id", "type": "integer", "nullable": false }], "primaryKey": ["id"], "uniques": [] },
+      { "schema": "public", "name": "invoices", "columns": [{ "name": "id", "type": "integer", "nullable": false }, { "name": "order_id", "type": "integer", "nullable": true }], "primaryKey": ["id"], "uniques": [] }
+    ],
+    "foreignKeys": [
+      { "name": "invoices_order_id_fkey", "from": [{ "schema": "public", "name": "invoices", "column": "order_id" }], "to": [{ "schema": "public", "name": "orders", "column": "id" }] }
+    ]
+  },
+  "claims": {
+    "relationships": [
+      { "from": [{ "schema": "public", "name": "audit_log", "column": "order_id" }], "to": [{ "schema": "public", "name": "orders", "column": "id" }], "directed": false,
+        "evidence": { "kind": "query", "source": "app/audit.ts", "line": 40, "text": "JOIN audit_log a ON a.order_id = orders.id" } }
+    ],
+    "polymorphic": []
+  }
+}

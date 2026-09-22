@@ -1,0 +1,131 @@
+{
+  "model": {
+    "tables": [
+      {
+        "schema": "public",
+        "name": "invoices",
+        "columns": [
+          {
+            "name": "id",
+            "type": "integer",
+            "nullable": false
+          },
+          {
+            "name": "order_id",
+            "type": "integer",
+            "nullable": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "orders",
+        "columns": [
+          {
+            "name": "id",
+            "type": "integer",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      }
+    ],
+    "edges": [
+      {
+        "id": "public.audit_log.order_id=public.orders.id",
+        "from": [
+          {
+            "schema": "public",
+            "name": "audit_log",
+            "column": "order_id"
+          }
+        ],
+        "to": [
+          {
+            "schema": "public",
+            "name": "orders",
+            "column": "id"
+          }
+        ],
+        "directed": true,
+        "state": "used_undeclared",
+        "cardinality": "many_to_one",
+        "evidence": [
+          {
+            "kind": "query",
+            "source": "app/audit.ts",
+            "line": 40,
+            "text": "JOIN audit_log a ON a.order_id = orders.id"
+          }
+        ]
+      },
+      {
+        "id": "public.invoices.order_id=public.orders.id",
+        "from": [
+          {
+            "schema": "public",
+            "name": "invoices",
+            "column": "order_id"
+          }
+        ],
+        "to": [
+          {
+            "schema": "public",
+            "name": "orders",
+            "column": "id"
+          }
+        ],
+        "directed": true,
+        "state": "declared_unused",
+        "cardinality": "many_to_one",
+        "evidence": [
+          {
+            "kind": "constraint",
+            "source": "invoices_order_id_fkey",
+            "text": "FOREIGN KEY (order_id) REFERENCES public.orders (id)"
+          }
+        ]
+      }
+    ],
+    "polymorphic": [],
+    "undeclaredTables": [
+      {
+        "schema": "public",
+        "name": "audit_log"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "severity": "fail",
+      "code": "used_undeclared",
+      "sentence": "The join in app/audit.ts:40 relies on public.audit_log.order_id → public.orders.id, which no constraint declares.",
+      "where": [
+        "app/audit.ts:40"
+      ]
+    },
+    {
+      "severity": "warn",
+      "code": "declared_unused",
+      "sentence": "public.invoices.order_id → public.orders.id is declared by invoices_order_id_fkey and used by no query that was read.",
+      "where": [
+        "invoices_order_id_fkey"
+      ]
+    },
+    {
+      "severity": "fail",
+      "code": "undeclared_table",
+      "sentence": "public.audit_log is queried (public.orders) and no schema declares it.",
+      "where": [
+        "app/audit.ts:40"
+      ]
+    }
+  ]
+}

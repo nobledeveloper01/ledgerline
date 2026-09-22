@@ -1,0 +1,92 @@
+{
+  "model": {
+    "tables": [
+      {
+        "schema": "public",
+        "name": "orders",
+        "columns": [
+          {
+            "name": "id",
+            "type": "integer",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "type": "integer",
+            "nullable": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "users",
+        "columns": [
+          {
+            "name": "id",
+            "type": "integer",
+            "nullable": false
+          },
+          {
+            "name": "email",
+            "type": "text",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": [
+          [
+            "email"
+          ]
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "public.orders.user_id=public.users.id",
+        "from": [
+          {
+            "schema": "public",
+            "name": "orders",
+            "column": "user_id"
+          }
+        ],
+        "to": [
+          {
+            "schema": "public",
+            "name": "users",
+            "column": "id"
+          }
+        ],
+        "directed": true,
+        "state": "used_undeclared",
+        "cardinality": "many_to_one",
+        "evidence": [
+          {
+            "kind": "query",
+            "source": "reports/summary.sql",
+            "line": 14,
+            "text": "JOIN users ON orders.user_id = users.id"
+          }
+        ]
+      }
+    ],
+    "polymorphic": [],
+    "undeclaredTables": []
+  },
+  "findings": [
+    {
+      "severity": "fail",
+      "code": "used_undeclared",
+      "sentence": "The join in reports/summary.sql:14 relies on public.orders.user_id → public.users.id, which no constraint declares.",
+      "where": [
+        "reports/summary.sql:14"
+      ]
+    }
+  ]
+}

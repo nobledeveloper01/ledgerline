@@ -1,0 +1,105 @@
+{
+  "model": {
+    "tables": [
+      {
+        "schema": "public",
+        "name": "comments",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "nullable": false
+          },
+          {
+            "name": "owner_type",
+            "type": "character varying",
+            "nullable": false
+          },
+          {
+            "name": "owner_id",
+            "type": "bigint",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "photos",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      },
+      {
+        "schema": "public",
+        "name": "posts",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "uniques": []
+      }
+    ],
+    "edges": [],
+    "polymorphic": [
+      {
+        "id": "public.comments.owner_id~public.comments.owner_type",
+        "from": [
+          {
+            "schema": "public",
+            "name": "comments",
+            "column": "owner_id"
+          }
+        ],
+        "discriminator": {
+          "schema": "public",
+          "name": "comments",
+          "column": "owner_type"
+        },
+        "targets": {
+          "Post": {
+            "schema": "public",
+            "name": "posts"
+          },
+          "Photo": {
+            "schema": "public",
+            "name": "photos"
+          }
+        },
+        "evidence": [
+          {
+            "kind": "orm",
+            "source": "app/models/comment.rb",
+            "line": 2,
+            "text": "belongs_to :owner, polymorphic: true"
+          },
+          {
+            "kind": "query",
+            "source": "app/queries/feed.sql",
+            "line": 9,
+            "text": "WHERE c.owner_type = 'Photo' AND c.owner_id = photos.id"
+          }
+        ]
+      }
+    ],
+    "undeclaredTables": []
+  },
+  "findings": []
+}

@@ -1,0 +1,16 @@
+{
+  "schema": {
+    "tables": [
+      { "schema": "public", "name": "users", "columns": [{ "name": "id", "type": "integer", "nullable": false }, { "name": "email", "type": "text", "nullable": false }], "primaryKey": ["id"], "uniques": [["email"]] },
+      { "schema": "public", "name": "orders", "columns": [{ "name": "id", "type": "integer", "nullable": false }, { "name": "user_id", "type": "integer", "nullable": true }], "primaryKey": ["id"], "uniques": [] }
+    ],
+    "foreignKeys": []
+  },
+  "claims": {
+    "relationships": [
+      { "from": [{ "schema": "public", "name": "orders", "column": "user_id" }], "to": [{ "schema": "public", "name": "users", "column": "id" }], "directed": false,
+        "evidence": { "kind": "query", "source": "reports/summary.sql", "line": 14, "text": "JOIN users ON orders.user_id = users.id" } }
+    ],
+    "polymorphic": []
+  }
+}
