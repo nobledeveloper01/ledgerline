@@ -385,7 +385,8 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
 }
 
 function statementText(text: string, start: number): string {
-  const rest = text.slice(start);
+  // The evidence is the statement, not the comment above it.
+  const rest = text.slice(start).replace(/^(?:\s|--[^\n]*|\/\*[\s\S]*?\*\/)*/, '');
   const end = rest.search(/;(?=(?:[^']*'[^']*')*[^']*$)/);
   const one = end === -1 ? rest : rest.slice(0, end);
   return one.length > 300 ? `${one.slice(0, 297)}…` : one;

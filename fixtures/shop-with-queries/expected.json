@@ -200,7 +200,7 @@
           {
             "kind": "query",
             "source": "queries/reports.sql",
-            "text": "-- The audit table exists only in the queries. SELECT a.* FROM audit_log a JOIN orders o ON o.id = a.order_id WHERE a.actor = ?",
+            "text": "SELECT a.* FROM audit_log a JOIN orders o ON o.id = a.order_id WHERE a.actor = ?",
             "line": 8
           }
         ],
@@ -262,7 +262,7 @@
           {
             "kind": "query",
             "source": "queries/reports.sql",
-            "text": "-- Invoices per order: declared, and used. SELECT o.id, count(i.id) FROM orders o LEFT JOIN invoices i ON i.order_id = o.id GROUP BY o.id",
+            "text": "SELECT o.id, count(i.id) FROM orders o LEFT JOIN invoices i ON i.order_id = o.id GROUP BY o.id",
             "line": 5
           }
         ],
@@ -291,7 +291,7 @@
           {
             "kind": "query",
             "source": "queries/reports.sql",
-            "text": "-- The monthly report: a join the schema never declared. SELECT u.email, sum(o.total) FROM orders o JOIN users u ON u.id = o.user_id WHERE o.created_at > ? GROUP BY u.email",
+            "text": "SELECT u.email, sum(o.total) FROM orders o JOIN users u ON u.id = o.user_id WHERE o.created_at > ? GROUP BY u.email",
             "line": 2
           }
         ],
@@ -327,7 +327,7 @@
           {
             "kind": "query",
             "source": "queries/reports.sql",
-            "text": "-- Comments on posts and photos: the polymorphic shape, twice. SELECT c.* FROM comments c JOIN posts p ON c.owner_id = p.id WHERE c.owner_type = ?",
+            "text": "SELECT c.* FROM comments c JOIN posts p ON c.owner_id = p.id WHERE c.owner_type = ?",
             "line": 11
           },
           {

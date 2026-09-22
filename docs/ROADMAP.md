@@ -103,7 +103,7 @@ email appears nowhere. The `shop-with-queries` fixture holds the hand-checked
 list: two undeclared joins, one unused constraint, one ghost table, one
 polymorphic edge with two targets, zero false edges.
 
-## Phase 3 — The report · **current**
+## Phase 3 — The report · **cleared 2026-09-22**
 
 The diagram people look at.
 
@@ -122,7 +122,19 @@ The diagram people look at.
 navigable; every edge state is distinguishable without colour (a shape or a dash,
 not only a hue); an accessibility audit of the HTML passes.*
 
-## Phase 4 — Drift as a gate → **v1.0**
+**Cleared.** ELK's layered layout at build time; one HTML file with inline SVG
+and a few hundred lines of inline script — pan, zoom, search, focus at one or
+two hops with the focus in the URL hash, an evidence panel, a theme toggle,
+keyboard for every table and edge. The 200-table fixture lays out and renders
+in well under two seconds and the file fetches nothing. Solid / dashed / dotted
+with a mark / dash-dot with a diamond / dashed outline for the five kinds of
+thing; a crow's foot only where a key proved it. Both palettes clear 4.5:1 on
+every surface, asserted. What "an accessibility audit" meant here is what a
+test can hold: a label and a tab stop on every table and edge, a live region for
+the panel, `role="img"` on the diagram, and contrast; a screen-reader pass by a
+person is not a thing a test does, and is noted in the journal.
+
+## Phase 4 — Drift as a gate → **v1.0** · **current**
 
 The reason the product exists.
 

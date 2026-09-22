@@ -6,6 +6,19 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
 
 ### Added
 
+- **The picture.** One static HTML file: ELK's layered layout computed at build
+  time, inline SVG, and a few hundred lines of inline script for pan, zoom,
+  search, focus at one or two hops with the focus in the URL hash (ADR-0003 #10),
+  an evidence panel that shows every query behind an edge, and a theme toggle.
+  Nothing fetched; opens from `file://`. The five kinds of thing are told apart
+  without colour — solid, dashed, dotted with a warning mark, dash-dot with a
+  diamond, dashed outline — and a crow's foot appears only where a key proved
+  it. Every table and edge has a label and a tab stop; both palettes clear
+  4.5:1 on every surface, asserted in a test.
+- **Mermaid for the README.** The declared subset as an `erDiagram` — solid
+  where used, dashed where not — and the badge line, *N undeclared joins*,
+  counting what the picture could not honestly draw (#15).
+
 - **The used side is read.** SQL the application runs becomes relationship
   claims with evidence: `JOIN … ON`, `JOIN … USING`, cross-table `WHERE`,
   `IN (SELECT …)`, scalar subqueries, `EXISTS`, `UPDATE … FROM`, `DELETE …

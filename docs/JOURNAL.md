@@ -5,6 +5,41 @@ The surprises are the point.
 
 ---
 
+## 2026-09-23, small hours — Phase 3: the picture
+
+**Did.** `@ledgerline/render`: ELK at build time, the SVG, the HTML with its
+inline script, Mermaid and the badge line, seven tests including the contrast
+assertion and a 200-table timing. Looked at the shop fixture in a browser:
+the dotted undeclared joins with their marks, the ghost `audit_log` in a
+dashed box, the polymorphic diamonds, focus dimming the rest and writing the
+hash, the evidence panel showing the masked query. Phase 3 cleared; Phase 4
+opened.
+
+### What surprised us
+
+**The evidence carried the comment above the query.** `-- The audit table
+exists only in the queries.` was the first thing in the panel, because the
+statement's location starts where the previous one ended. The evidence text
+now skips leading comments the way the line count already did.
+
+**A grey that passed on white failed on the header.** The ghost colour was
+4.34:1 against the table-header fill; the test that composites every ink on
+every surface caught it, and the ghost is a shade darker.
+
+**`url(` is also a marker reference.** The no-network test forbade `url(` and
+the SVG's own `marker-end="url(#crow)"` tripped it; the test now forbids
+`url(` that is not `url(#`.
+
+**What "accessibility audit" can mean in a test.** Labels, tab stops, a live
+region, a role on the diagram, and contrast — those a test holds. A person
+with a screen reader walking the diagram is not something this repository can
+do, and the roadmap says so rather than claiming it.
+
+### Still open
+
+- Phase 4: the command, the gate, the Action, the pull-request comment, and
+  the eight remaining things from ADR-0003.
+
 ## 2026-09-22, night — Phase 2: the queries, and fifteen more things
 
 **Did.** ADR-0003 (fifteen things, four refused) before any code. Then

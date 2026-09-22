@@ -21,16 +21,16 @@ npx ledgerline check          # one command, no database, no account
 
 ## Status
 
-**Phase 3 of 5 — the report.** The technical core is built: the declared side
-(DDL through PostgreSQL's own grammar, migrations, Prisma, a live database —
-proven byte-identical on a 200-table corpus) and the used side (joins, subqueries
-and the polymorphic shape read out of `.sql` files, query logs and string
-literals in eleven languages, every literal masked) reconcile into one model
-whose every edge is declared-and-used, declared-and-unused, or used-and-
-undeclared, with the line of evidence on it. A 200-world property test holds the
-core. What does not exist yet is the picture, and the command; those are next.
+**Phase 4 of 5 — drift as a gate.** The model, the readers and the picture
+exist: the declared side (DDL through PostgreSQL's own grammar, migrations,
+Prisma, a live database) and the used side (joins, subqueries and the
+polymorphic shape read out of `.sql` files, query logs and source literals in
+eleven languages, every literal masked) reconcile into one model, held by a
+200-world property test, and render as one static HTML file with pan, zoom,
+search, focus subgraphs and an evidence panel. What does not exist yet is the
+command and the gate — `ledgerline check` failing a build — which is this phase.
 
-**The numbers.** 36 tests across three packages, two of them against a real
+**The numbers.** 43 tests across four packages, two of them against a real
 PostgreSQL, one a 200-world property · 5 fixtures diffed on every build, one of
 200 tables · 7 gates, the boundary gate broken on purpose every run · 3 ADRs,
 one of them fifteen more things.
