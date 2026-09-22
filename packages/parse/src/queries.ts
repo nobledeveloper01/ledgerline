@@ -406,11 +406,21 @@ class Walker {
   }
 }
 
-/** Placeholders other drivers use, rewritten to the `$n` PostgreSQL parses: `?`, `:name`, `%s`, `%(name)s`, `${x}`. */
+/**
+ * Placeholders other drivers use, rewritten to the `$n` PostgreSQL parses:
+ * `?`, `:name`, `%s`, `%(name)s`, `${x}` and Ruby's `#{x}`.
+ *
+ * The Ruby form was added after reading Mastodon: every statement the parser
+ * refused there, once the *looks like SQL* heuristic stopped offering it
+ * English, was a query with `#{…}` in it — `SELECT MAX(id) FROM (#{subquery})
+ * t`. An interpolation is a value in every one of these languages, and a
+ * value is what `$n` stands for.
+ */
 export function normalisePlaceholders(sql: string): string {
   let n = 0;
   return sql
     .replace(/\$\{[^}]*\}/g, () => `$${++n}`)
+    .replace(/#\{[^}]*\}/g, () => `$${++n}`)
     .replace(/%\([\w.]+\)s/g, () => `$${++n}`)
     .replace(/(?<![\w%])%[sd]\b/g, () => `$${++n}`)
     .replace(/(?<![\w:]):[a-zA-Z_]\w*\b(?!\s*::)/g, () => `$${++n}`)

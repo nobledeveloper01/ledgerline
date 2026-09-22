@@ -158,7 +158,21 @@ function csvColumn(text: string, column: string): string[] {
 }
 
 const SOURCE_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs', '.jsx', '.py', '.rb', '.go', '.cs', '.php', '.java', '.kt', '.rs', '.scala', '.ex', '.exs']);
-const LOOKS_LIKE_SQL = /^\s*(SELECT|INSERT|UPDATE|DELETE|WITH)\b/i;
+/**
+ * Whether a string literal is worth handing to the parser.
+ *
+ * It used to be the first word, and the first word is also an English word.
+ * On Mastodon that made 1947 "statements the parser refused", of which the
+ * overwhelming majority were interface strings: `"delete"`, `"Delete &
+ * re-draft"`, `"Select your favourite fruit or not. Up to you."`. The count
+ * was honest and useless, and a user reading *1947 not parsed* concludes the
+ * tool is broken.
+ *
+ * So the shape, not the verb: a SELECT with a FROM, an INSERT INTO, an UPDATE
+ * with a SET, a DELETE FROM, a WITH that opens a subquery. A `SELECT 1`
+ * health check no longer qualifies, which costs nothing — it names no table.
+ */
+const LOOKS_LIKE_SQL = /^\s*(?:SELECT\b[\s\S]*\bFROM\b|INSERT\s+INTO\b|UPDATE\b[\s\S]*\bSET\b|DELETE\b[\s\S]*\bFROM\b|WITH\b[\s\S]*\bAS\s*\()/i;
 
 interface Literal {
   readonly text: string;

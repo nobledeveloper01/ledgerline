@@ -28,6 +28,20 @@ done rather than described.
   unused relationship when the sample is empty. The count of tables nothing
   read is now stated once, as a fact about the sample. On Mastodon that turns
   148 warnings into 34, all of them about tables the queries really did read.
+- **"1947 not parsed" was 1947 English sentences.** A string was offered to
+  the parser if its first word was `SELECT`, `INSERT`, `UPDATE`, `DELETE` or
+  `WITH` — which is also how a great many interface strings begin:
+  `"delete"`, `"Delete & re-draft"`, `"Select your favourite fruit or not. Up
+  to you."`. The test is now the *shape* — a SELECT with a FROM, an INSERT
+  INTO, an UPDATE with a SET — and on Mastodon the count of statements the
+  parser refused went from 1947 to 2, with the same findings. The sources
+  reported went from 613 to 36, which is the number of files that really do
+  contain SQL.
+- **Ruby's `#{…}` is a placeholder**, like `${…}`, `?`, `:name` and `%s`
+  already were. Both of the two statements still unread on Mastodon after the
+  change above were queries with Ruby interpolation in them; one of them now
+  parses, and the other interpolates its own FROM clause and is honestly
+  beyond reading.
 - **A repository that does not hold still is still read.** A dangling symlink
   crashed the whole run with exit 70. An unreadable directory, a vanished
   file and a broken link are now skipped, because one broken link is not a

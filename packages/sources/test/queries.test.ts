@@ -76,3 +76,21 @@ test('a repository that does not hold still is still read: a dangling symlink, a
   chmodSync(join(dir, 'sql', 'locked'), 0o755);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test('an English sentence that starts with a SQL verb is not a query, and Ruby interpolation is a value', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ledgerline-heur-'));
+  writeFileSync(
+    join(dir, 'ui.rb'),
+    [
+      '# The strings a real application holds that begin with a SQL verb.',
+      'BUTTONS = ["delete", "Delete & re-draft", "Update your profile", "Select your favourite fruit or not. Up to you.", "Insert text with emoji"]',
+      '# And a real query, with Ruby interpolation in it.',
+      'SQL = "SELECT o.id FROM orders o JOIN users u ON u.id = o.user_id WHERE o.total > #{threshold}"',
+    ].join('\n'),
+  );
+  const g = await claimsFromSource(dir);
+  assert.equal(g.unparsed, 0, 'not one of the interface strings was offered to the parser');
+  assert.equal(g.relationships.length, 1, 'the query with #{…} in it parsed');
+  assert.equal(g.relationships[0]!.evidence.text.includes('#{'), false, 'the interpolation became a placeholder');
+  rmSync(dir, { recursive: true, force: true });
+});
