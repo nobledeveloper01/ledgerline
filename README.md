@@ -112,8 +112,19 @@ npx ledgerline check
 three of them 200-world properties · 6 fixtures diffed on every build, two of
 them 200 tables — the same schema in PostgreSQL and in MySQL · 10 gates, four
 of them — the boundary, reachability, the fixtures and the tool itself — broken
-on purpose every run · 7 ADRs · 10 commands · 9 places a schema can come
-from, and none of them is run.
+on purpose every run · 7 ADRs · 10 commands · 10 places a schema can come
+from, and the nine that are files are never run.
+
+**Using it**
+
+| | |
+|---|---|
+| Install, and every command with real output | [`docs/USAGE.md`](docs/USAGE.md) |
+| Every `ledgerline.json` field, with four real configurations | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) |
+| Every finding, and what to do about it | [`docs/FINDINGS.md`](docs/FINDINGS.md) |
+| The ten places a schema can come from | [`docs/SOURCES.md`](docs/SOURCES.md) |
+
+**Why it is the way it is**
 
 | | |
 |---|---|

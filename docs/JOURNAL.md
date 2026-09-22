@@ -5,6 +5,35 @@ The surprises are the point.
 
 ---
 
+## 2026-09-23 — the documentation that was never written
+
+**Did.** Four user-facing pages — `USAGE`, `CONFIGURATION`, `FINDINGS`,
+`SOURCES` — and `make user-docs-check` to keep them true.
+
+### What surprised us
+
+**Every document in this repository was for the person building it.** A
+product statement, a roadmap with exit gates, seven ADRs, a 500-line journal,
+a gate evidence pack — and not one sentence telling anybody how to run the
+thing. Ten commands, seventeen configuration settings and nine findings, none
+of them written down anywhere but in the code that implements them. The
+`--help` text was the entire user manual.
+
+That is a particular kind of blindness, and it lasted five phases: the gates
+all check whether the *reasoning* is recorded, and none of them checked
+whether the *product* is. `make user-docs-check` closes it the way this
+repository closes everything — the command list comes from the dispatcher, the
+findings from the model, the settings from the `Config` interface, so an
+eleventh command cannot ship undocumented and the gate cannot go stale by
+carrying its own copy of the list.
+
+**Writing the pages was the best review of the product I have done.** Reading
+back what a finding *means*, out loud, for somebody who has not read the
+source, is a different act from writing the rule. The three ways to make a
+finding go away — fix it, baseline it, policy it — were all implemented and
+had never been stated together, and stating them made it obvious that
+confusing the second and the third is how a gate becomes noise.
+
 ## 2026-09-23, later still — the check meets a real repository
 
 **Did.** Ran `ledgerline check` against Mastodon: a Rails application, 116

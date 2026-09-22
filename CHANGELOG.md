@@ -135,6 +135,25 @@ described.
 
 ### Added
 
+- **User documentation, which did not exist.** The repository was thoroughly
+  documented for whoever *builds* it — a product statement, a roadmap, seven
+  ADRs, a journal — and had nothing for whoever *uses* it: no command
+  reference, no configuration reference, no explanation of what a finding
+  means. Four pages now: [`docs/USAGE.md`](docs/USAGE.md) (install and every
+  command, with real output from real repositories),
+  [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) (every `ledgerline.json`
+  field and four working configurations),
+  [`docs/FINDINGS.md`](docs/FINDINGS.md) (every finding, what it means, what
+  it does *not* mean, and what to do) and
+  [`docs/SOURCES.md`](docs/SOURCES.md) (the ten places a schema can come
+  from).
+- **`make user-docs-check`** keeps them true. It derives the command list from
+  the CLI dispatcher, the findings from the model, and the settings from the
+  `Config` interface, and fails when any of them is missing from its page — so
+  an eleventh command cannot ship undocumented. Like every gate here it proves
+  itself, by planting a command the documentation cannot mention and requiring
+  the check to fail.
+
 - **`make reach`** (ADR-0006): every rule the model exports must have a caller
   outside the model, or a written reason in `scripts/model-internal.txt` for
   why it does not. It exists because `ledgerline usage` below was a rule with

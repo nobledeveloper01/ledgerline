@@ -6,6 +6,14 @@ first, then `docs/ROADMAP.md` for the phase and its exit gate, `docs/TOOLCHAIN.m
 for every dependency and why, and `docs/adr/` for what is decided. `PHASE` holds
 the current phase.
 
+For what the thing *does*: `docs/USAGE.md` (the commands),
+`docs/CONFIGURATION.md` (`ledgerline.json`), `docs/FINDINGS.md` (every finding
+and what to do about it), `docs/SOURCES.md` (the ten places a schema comes
+from). **A change to a command, a config field or a finding is not done until
+the matching page says so** — `make doc-check` requires the four to exist and
+`make user-docs-check` requires every command and every finding to appear in
+them.
+
 The one sentence that decides most arguments:
 
 > **A database diagram is a claim about the system, and a claim is only worth

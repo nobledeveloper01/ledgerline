@@ -7,7 +7,7 @@ help: ## Show this help
 
 ci: gates test ## Everything CI runs
 
-gates: typecheck lint boundary reach doc-check fixtures-check self-check badge-check ## The blocking checks alone
+gates: typecheck lint boundary reach doc-check user-docs-check fixtures-check self-check badge-check ## The blocking checks alone
 
 typecheck: ## tsc across the workspace, and the scripts
 	@pnpm -r typecheck
@@ -24,6 +24,9 @@ doc-check: ## The documentation gate
 
 reach: ## Every rule the model exports has a caller outside the model, and no source file is binary
 	@./scripts/reach-check.sh
+
+user-docs-check: ## Every command, finding and setting appears in the user documentation
+	@./scripts/user-docs-check.sh
 
 fixtures: ## Regenerate every fixture's expected.json from the rules — deliberately, then read the diff
 	@node --conditions=source scripts/emit-fixtures.ts
@@ -56,4 +59,4 @@ large: ## Regenerate the 200-table migrations fixtures, PostgreSQL and MySQL
 hooks: ## Install the git hooks
 	@git config core.hooksPath .githooks && echo "hooks installed"
 
-.PHONY: help ci gates typecheck lint boundary reach doc-check fixtures fixtures-check self-check badge badge-check test live-check large hooks
+.PHONY: help ci gates typecheck lint boundary reach doc-check user-docs-check fixtures fixtures-check self-check badge badge-check test live-check large hooks

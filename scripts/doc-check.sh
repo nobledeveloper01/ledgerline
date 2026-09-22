@@ -10,7 +10,7 @@ err()  { printf '%s✗%s %s\n' "$RED" "$OFF" "$1"; fail=$((fail+1)); }
 note() { printf '%s!%s %s\n' "$YEL" "$OFF" "$1"; }
 ok()   { printf '%s✓%s %s\n' "$GRN" "$OFF" "$1"; }
 
-REQUIRED="README.md CLAUDE.md CHANGELOG.md PHASE LICENSE docs/00-PRODUCT-STATEMENT.md docs/ROADMAP.md docs/TOOLCHAIN.md docs/JOURNAL.md docs/GATE-PHASE-4.md"
+REQUIRED="README.md CLAUDE.md CHANGELOG.md PHASE LICENSE docs/00-PRODUCT-STATEMENT.md docs/ROADMAP.md docs/TOOLCHAIN.md docs/JOURNAL.md docs/GATE-PHASE-4.md docs/USAGE.md docs/CONFIGURATION.md docs/FINDINGS.md docs/SOURCES.md"
 for f in $REQUIRED; do [ -f "$f" ] || err "missing $f"; done
 [ "$fail" -eq 0 ] && ok "all required documents present"
 
