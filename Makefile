@@ -33,7 +33,8 @@ test: ## Every package's tests; the live-database tests skip yellow unless LEDGE
 
 live-check: ## Fail if the live-database tests were skipped — the Phase 1 gate, run where a PostgreSQL is
 	@test -n "$$LEDGERLINE_TEST_DATABASE_URL" || (echo "LEDGERLINE_TEST_DATABASE_URL is not set — the migrations-vs-live gate did not run"; exit 1)
-	@cd packages/sources && pnpm test 2>&1 | tee /tmp/ledgerline-live.log | grep -qE "^ℹ skipped 0$$" || (echo "a live-database test was skipped"; exit 1)
+	@# `node --test` prints the spec reporter on a TTY (ℹ skipped 0) and TAP elsewhere (# skipped 0); CI is the latter.
+	@cd packages/sources && pnpm test 2>&1 | tee /tmp/ledgerline-live.log | grep -qE "^(ℹ|#) skipped 0$$" || (echo "a live-database test was skipped"; exit 1)
 	@echo "migrations and a live PostgreSQL agree byte for byte on every corpus"
 
 large: ## Regenerate the 200-table migrations fixture
