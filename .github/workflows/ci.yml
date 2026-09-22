@@ -1,0 +1,14 @@
+# The same `make ci` that runs locally. Phase 0 adds Node and the packages.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: make ci
