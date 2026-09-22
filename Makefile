@@ -46,8 +46,9 @@ live-check: ## Fail if the live-database tests were skipped — the Phase 1 gate
 	@cd packages/sources && pnpm test 2>&1 | tee /tmp/ledgerline-live.log | grep -qE "^(ℹ|#) skipped 0$$" || (echo "a live-database test was skipped"; exit 1)
 	@echo "migrations and a live PostgreSQL agree byte for byte on every corpus"
 
-large: ## Regenerate the 200-table migrations fixture
+large: ## Regenerate the 200-table migrations fixtures, PostgreSQL and MySQL
 	@node --conditions=source scripts/emit-large-schema.ts
+	@node --conditions=source scripts/emit-large-mysql.ts
 
 hooks: ## Install the git hooks
 	@git config core.hooksPath .githooks && echo "hooks installed"

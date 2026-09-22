@@ -5,6 +5,48 @@ The surprises are the point.
 
 ---
 
+## 2026-09-23, later — Phase 5: MySQL, and two ORMs read without running them
+
+**Did.** The MySQL rewrite (ADR-0004) grew `MODIFY`/`CHANGE COLUMN` and the
+`ADD KEY` forms; a second 200-table corpus generated from the *same seed* as
+the PostgreSQL one and written the way MySQL writes it; a test that asserts
+the two corpora are the same schema; the Phase 2 property test repeated in
+MySQL's spelling; Rails `schema.rb` and Django `models.py` readers (ADR-0005)
+wired into the CLI behind migrations. 69 tests, 6 fixtures, 5 ADRs.
+
+### What surprised us
+
+**MySQL and PostgreSQL disagree about what an alter that omits something
+means.** `ALTER TABLE t ALTER COLUMN c TYPE text` in PostgreSQL changes the
+type and leaves the nullability alone. `ALTER TABLE t MODIFY COLUMN c text` in
+MySQL restates the *whole column*, so a column that was `NOT NULL` becomes
+nullable — the omission is the instruction. The rewrite had this right and the
+corpus generator had it wrong, so four of two hundred tables came out with a
+column nullable on one side and required on the other. The diff that found it
+compared the two corpora table by table; no single-dialect test could have.
+
+**A property test asserted something true for the wrong reason.** The MySQL
+query property passed on the first run — and would have passed just as green
+if the dialect switch had been a no-op, because PostgreSQL's parser is
+forgiving enough to be worth checking against. The test now asserts the
+*negative* as well: the same SQL read as PostgreSQL must fail to parse. That
+caught the empty-query-set case immediately, which is the generator's way of
+saying the assertion needed a guard, not that the idea was wrong.
+
+**The honest part of an ORM reader is the list of what it did not read.**
+Rails derives `user_id` from `"users"` by singularising, which means this
+repository now contains an inflector, which means there are plurals it will
+get wrong. The reader does not draw an edge whose column the table does not
+have — it reports the line instead. Writing that rule was easier than writing
+the inflector, and it is the rule that makes the inflector's gaps harmless.
+
+### Still open
+
+- Phase 4's gate, and Phase 5's repetition of it for MySQL: three real public
+  repositories, every finding read by a person. Still an afternoon of reading,
+  still not done, still not claimed.
+- EF Core, TypeORM and SQLAlchemy readers. Three more of the same shape.
+
 ## 2026-09-23 — Phase 4's code: the command, the gate, and what is not cleared
 
 **Did.** The baseline, explain, blast and usage rules in the model; schema

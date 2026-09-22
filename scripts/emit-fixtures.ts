@@ -26,10 +26,11 @@ for (const dir of readdirSync(root, { withFileTypes: true }).filter((d) => d.isD
     schema = input.schema;
     claims = input.claims;
   } else if (existsSync(join(base, 'migrations'))) {
-    schema = await schemaFromMigrations(join(base, 'migrations'));
+    const dialect = existsSync(join(base, 'dialect')) ? (readFileSync(join(base, 'dialect'), 'utf8').trim() as 'postgres' | 'mysql') : 'postgres';
+    schema = await schemaFromMigrations(join(base, 'migrations'), dialect);
     // `queries/` holds SQL the application runs, read through the parser; `claims.json` holds claims handed in directly.
     claims = existsSync(join(base, 'queries'))
-      ? await claimsFromSqlFiles(join(base, 'queries'), schema, base)
+      ? await claimsFromSqlFiles(join(base, 'queries'), schema, base, dialect)
       : existsSync(join(base, 'claims.json'))
         ? (JSON.parse(readFileSync(join(base, 'claims.json'), 'utf8')) as Claims)
         : NO_CLAIMS;

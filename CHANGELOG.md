@@ -6,6 +6,27 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
 
 ### Added
 
+- **MySQL and MariaDB.** Set `"dialect": "mysql"` in `ledgerline.json` and the
+  DDL and the queries are read in MySQL's spelling: backtick identifiers,
+  `int(11)`, `ENGINE=InnoDB`, `KEY` clauses inside `CREATE TABLE`, `MODIFY`
+  and `CHANGE COLUMN`, `LIMIT n, m`. MySQL is normalised into the one grammar
+  rather than parsed by a second one (ADR-0004), and a statement the rewrite
+  has no rule for — a partition clause, a generated column, a fulltext or
+  spatial index, a trigger or a routine — is **skipped and counted**, never
+  half-read. A diagram that quietly dropped a table would look complete.
+- **Rails `db/schema.rb` and Django `models.py` as schema sources.** For
+  repositories that contain no SQL at all. Both are read as text and **never
+  executed** (ADR-0005): running a repository's code to draw its diagram is a
+  liability, not a feature. Django's `<app>_<model>` table name comes from the
+  directory the file is in, because that is Django's rule; a `ManyToManyField`
+  becomes the join table Django would create. Where a convention cannot be
+  reproduced — a Rails foreign key whose column is derived from a plural the
+  inflector does not know, a `ForeignKey` to a model in another file — the
+  line is **reported as unread** and no edge is drawn.
+- Migrations are still read first. An ORM file is used only when a repository
+  has no migrations directory: two answers to one question is the thing this
+  tool exists to complain about.
+
 - **The command.** `ledgerline check` on a repository with no configuration and
   no database: it finds the migrations where migration tools put them, reads the
   queries out of the whole repository, and prints one sentence per finding with

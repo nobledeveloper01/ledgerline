@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { reconcile, type Claims, type DeclaredSchema, type Model } from '@ledgerline/model';
-import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parsePrisma, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
+import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parsePrisma, parseRailsSchema, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
 import { readFileSync } from 'node:fs';
 
 import type { Resolved } from './config.ts';
@@ -52,12 +52,28 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
   for (const dir of config.migrations) {
     const full = join(config.root, dir);
     if (!existsSync(full)) continue;
-    parts.push(await schemaFromMigrations(full));
+    parts.push(await schemaFromMigrations(full, config.dialect));
     names.push(dir);
   }
+  // A repository has one declared schema; migrations are the truth when they
+  // exist, and the ORM file is the truth when they do not. Read in that order,
+  // and never both — two answers to one question is the thing this tool exists
+  // to complain about, not to do.
   if (parts.length === 0 && config.prisma && existsSync(join(config.root, config.prisma))) {
     parts.push(parsePrisma(readFileSync(join(config.root, config.prisma), 'utf8')));
     names.push(config.prisma);
+  }
+  if (parts.length === 0 && config.rails && existsSync(join(config.root, config.rails))) {
+    parts.push(parseRailsSchema(readFileSync(join(config.root, config.rails), 'utf8')).schema);
+    names.push(config.rails);
+  }
+  if (parts.length === 0) {
+    for (const models of config.django) {
+      const full = join(config.root, models);
+      if (!existsSync(full)) continue;
+      parts.push(parseDjangoModels(readFileSync(full, 'utf8'), full).schema);
+      names.push(models);
+    }
   }
   if (parts.length === 0) return { schema: { tables: [], foreignKeys: [] }, from: 'nothing' };
   // Several migration directories — a monorepo with a service each — are one schema.
@@ -74,11 +90,11 @@ export async function buildModel(config: Resolved, options: BuildOptions = {}): 
   for (const q of config.queries) {
     const full = join(config.root, q);
     if (!existsSync(full)) continue;
-    gathered = join2(gathered, q.endsWith('.sql') ? await claimsFromSqlFiles(full, schema, config.root) : await claimsFromRepository(full, schema));
+    gathered = join2(gathered, q.endsWith('.sql') ? await claimsFromSqlFiles(full, schema, config.root, config.dialect) : await claimsFromRepository(full, schema, config.dialect));
   }
   for (const log of config.logs) {
     const full = join(config.root, log);
-    if (existsSync(full)) gathered = join2(gathered, await claimsFromLog(full, schema, log));
+    if (existsSync(full)) gathered = join2(gathered, await claimsFromLog(full, schema, log, config.dialect));
   }
   const claims: Claims = { relationships: gathered.relationships, polymorphic: gathered.polymorphic };
   return {

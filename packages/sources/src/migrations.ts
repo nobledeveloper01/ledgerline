@@ -13,7 +13,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 import type { DeclaredSchema } from '@ledgerline/model';
-import { foldMigrations } from '@ledgerline/parse';
+import { foldMigrations, foldMigrationsReporting, type Dialect, type FoldResult } from '@ledgerline/parse';
 
 export interface MigrationFile {
   readonly name: string;
@@ -41,6 +41,11 @@ export function listMigrations(dir: string): MigrationFile[] {
   return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
-export async function schemaFromMigrations(dir: string): Promise<DeclaredSchema> {
-  return foldMigrations(listMigrations(dir));
+export async function schemaFromMigrations(dir: string, dialect: Dialect = 'postgres'): Promise<DeclaredSchema> {
+  return foldMigrations(listMigrations(dir), dialect);
+}
+
+/** The same, and what a MySQL rewrite could not read (ADR-0004). */
+export async function schemaFromMigrationsReporting(dir: string, dialect: Dialect = 'postgres'): Promise<FoldResult> {
+  return foldMigrationsReporting(listMigrations(dir), dialect);
 }

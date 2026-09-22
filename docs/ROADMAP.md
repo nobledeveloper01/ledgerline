@@ -134,7 +134,7 @@ test can hold: a label and a tab stop on every table and edge, a live region for
 the panel, `role="img"` on the diagram, and contrast; a screen-reader pass by a
 person is not a thing a test does, and is noted in the journal.
 
-## Phase 4 — Drift as a gate → **v1.0** · **current** — the code is built, the gate is not cleared
+## Phase 4 — Drift as a gate → **v1.0** — the code is built, the gate is not cleared
 
 The reason the product exists.
 
@@ -175,7 +175,7 @@ afternoon of reading, not a script, and until somebody does it the honest state
 of this phase is *the code is ready to be tested against reality*. Nothing in the
 README or the changelog says otherwise.
 
-## Phase 5 — Breadth · v1.1
+## Phase 5 — Breadth · v1.1 · **current** — the MySQL half is cleared, the ORM half is built
 
 - MySQL/MariaDB DDL and query dialect.
 - More ORM sources: EF Core model snapshots, Django `models.py`, Rails
@@ -185,6 +185,30 @@ README or the changelog says otherwise.
 
 **Exit gate.** *The Phase 2 property test and the Phase 4 gate hold on a MySQL
 fixture corpus of the same size as the PostgreSQL one.*
+
+**The MySQL half of the gate is cleared.** `fixtures/large-200-mysql` is the
+*same* 200-table schema as `fixtures/large-200`, generated from the same seed
+and written the way MySQL writes it — backticks, `int(11)`, `ENGINE=InnoDB`,
+`KEY` clauses inside the table body, `MODIFY COLUMN`. A test asserts the two
+corpora reconcile to the same tables, the same columns, the same nullability,
+the same keys and the same 375 foreign keys, and that the only two types that
+differ are the two MySQL has no word for. The Phase 2 property test is
+repeated in MySQL's spelling, and asserts that the same SQL read as PostgreSQL
+does *not* parse — so the dialect is proved to be doing the work rather than
+being a no-op that happens to be green.
+
+**Of the ORM sources, two are built and three are not.** Rails `schema.rb` and
+Django `models.py` are read (ADR-0005), wired into the CLI behind migrations,
+and tested against real-shaped files including the cases where the reader
+declines to guess. **EF Core model snapshots, TypeORM entities and SQLAlchemy
+are not built**, and nothing in the README or the changelog says they are.
+They are three more readers of the same shape; the reason they are not here is
+time, not difficulty.
+
+**What the whole gate still waits on** is the Phase 4 half of it: the same
+three-real-repositories reading, done against MySQL repositories. That is the
+same afternoon of human reading Phase 4 waits on, and it is not claimed here
+either.
 
 ---
 

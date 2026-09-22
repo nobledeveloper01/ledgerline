@@ -339,13 +339,27 @@ export function normalisePlaceholders(sql: string): string {
  * refuses are counted, not raised: a query log is full of things that are
  * not PostgreSQL, and one bad line must not hide the rest.
  */
-export async function claimsFromSql(sql: string, at: QuerySource, schema: DeclaredSchema | null = null): Promise<QueryClaims> {
+export type QueryDialect = 'postgres' | 'mysql';
+
+/**
+ * MySQL's query syntax that PostgreSQL's parser refuses, rewritten: backtick
+ * identifiers, and `LIMIT n, m` — which is `LIMIT m OFFSET n`. Everything
+ * else about a join is the same SQL in both, which is why one walker reads
+ * both (ADR-0004).
+ */
+export function mysqlQueryToPostgres(sql: string): string {
+  return sql
+    .replace(/`([^`]*)`/g, (_, name: string) => `"${name.replace(/"/g, '""')}"`)
+    .replace(/\blimit\s+(\d+)\s*,\s*(\d+)/gi, (_, a: string, b: string) => `LIMIT ${b} OFFSET ${a}`);
+}
+
+export async function claimsFromSql(sql: string, at: QuerySource, schema: DeclaredSchema | null = null, dialect: QueryDialect = 'postgres'): Promise<QueryClaims> {
   const p = await pg();
   const relationships: RelationshipClaim[] = [];
   const polymorphic: PolymorphicClaim[] = [];
   let parsed = 0;
   let unparsed = 0;
-  const text = normalisePlaceholders(sql);
+  const text = normalisePlaceholders(dialect === 'mysql' ? mysqlQueryToPostgres(sql) : sql);
   let stmts: readonly { stmt: Node; stmt_location?: number }[];
   try {
     stmts = (await p.parse(text)).stmts;

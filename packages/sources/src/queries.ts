@@ -25,7 +25,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 import type { Claims, DeclaredSchema } from '@ledgerline/model';
-import { claimsFromSql, type QueryClaims } from '@ledgerline/parse';
+import { claimsFromSql, type QueryClaims, type QueryDialect } from '@ledgerline/parse';
 
 export interface Gathered extends Claims {
   readonly parsed: number;
@@ -61,16 +61,16 @@ function walk(dir: string, keep: (name: string) => boolean, skip: RegExp = /(^|[
 }
 
 /** `.sql` files under `dir`, each statement with its line. */
-export async function claimsFromSqlFiles(dir: string, schema: DeclaredSchema | null = null, root = dir): Promise<Gathered> {
+export async function claimsFromSqlFiles(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres'): Promise<Gathered> {
   let out = NONE;
   for (const file of walk(dir, (n) => n.toLowerCase().endsWith('.sql'))) {
-    out = merge(out, await claimsFromSql(readFileSync(file, 'utf8'), { source: relative(root, file), line: 1 }, schema));
+    out = merge(out, await claimsFromSql(readFileSync(file, 'utf8'), { source: relative(root, file), line: 1 }, schema, dialect));
   }
   return out;
 }
 
 /** A query log: JSON `[{query}]`, CSV with a `query` column, or plain SQL text. */
-export async function claimsFromLog(path: string, schema: DeclaredSchema | null = null, name = path): Promise<Gathered> {
+export async function claimsFromLog(path: string, schema: DeclaredSchema | null = null, name = path, dialect: QueryDialect = 'postgres'): Promise<Gathered> {
   const text = readFileSync(path, 'utf8');
   const trimmed = text.trimStart();
   let statements: string[];
@@ -83,7 +83,7 @@ export async function claimsFromLog(path: string, schema: DeclaredSchema | null 
     statements = text.split(/;\s*\n|\n(?=\s*(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b)/i).map((s) => s.trim()).filter((s) => s.length > 0);
   }
   let out = NONE;
-  for (const s of statements) out = merge(out, await claimsFromSql(s, { source: name }, schema));
+  for (const s of statements) out = merge(out, await claimsFromSql(s, { source: name }, schema, dialect));
   return { ...out, sources: 1 };
 }
 
@@ -201,7 +201,7 @@ export function stringLiterals(src: string): Literal[] {
 }
 
 /** Queries found as string literals in source files under `dir`. */
-export async function claimsFromSource(dir: string, schema: DeclaredSchema | null = null, root = dir): Promise<Gathered> {
+export async function claimsFromSource(dir: string, schema: DeclaredSchema | null = null, root = dir, dialect: QueryDialect = 'postgres'): Promise<Gathered> {
   let out = NONE;
   for (const file of walk(dir, (nm) => SOURCE_EXT.has(nm.slice(nm.lastIndexOf('.')).toLowerCase()))) {
     const src = readFileSync(file, 'utf8');
@@ -209,7 +209,7 @@ export async function claimsFromSource(dir: string, schema: DeclaredSchema | nul
     for (const lit of stringLiterals(src)) {
       if (!LOOKS_LIKE_SQL.test(lit.text)) continue;
       any = true;
-      const c = await claimsFromSql(lit.text, { source: relative(root, file), line: lit.line }, schema);
+      const c = await claimsFromSql(lit.text, { source: relative(root, file), line: lit.line }, schema, dialect);
       out = { ...merge(out, c), sources: out.sources };
     }
     if (any) out = { ...out, sources: out.sources + 1 };
@@ -218,9 +218,9 @@ export async function claimsFromSource(dir: string, schema: DeclaredSchema | nul
 }
 
 /** Everything under a repository: `.sql` files and source literals together. */
-export async function claimsFromRepository(dir: string, schema: DeclaredSchema | null = null): Promise<Gathered> {
-  const files = await claimsFromSqlFiles(dir, schema, dir);
-  const code = await claimsFromSource(dir, schema, dir);
+export async function claimsFromRepository(dir: string, schema: DeclaredSchema | null = null, dialect: QueryDialect = 'postgres'): Promise<Gathered> {
+  const files = await claimsFromSqlFiles(dir, schema, dir, dialect);
+  const code = await claimsFromSource(dir, schema, dir, dialect);
   return {
     relationships: [...files.relationships, ...code.relationships],
     polymorphic: [...files.polymorphic, ...code.polymorphic],

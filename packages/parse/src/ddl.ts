@@ -15,6 +15,7 @@
 
 import type { Column, DeclaredSchema, ForeignKey, Table } from '@ledgerline/model';
 
+import { mysqlToPostgres } from './mysql.ts';
 import { parseSql, type Node, type RawStmt } from './pg.ts';
 
 const DEFAULT_SCHEMA = 'public';
@@ -31,6 +32,11 @@ const TYPE_NAMES: Readonly<Record<string, string>> = {
   bpchar: 'character',
   timestamptz: 'timestamp with time zone',
   timetz: 'time with time zone',
+  // libpg_query spells these `timestamp` and `time`; `format_type` — and so a
+  // live database — spells them in full. Found by a MySQL `datetime`, which
+  // the Phase 1 corpus had no PostgreSQL equivalent of.
+  timestamp: 'timestamp without time zone',
+  time: 'time without time zone',
   // `serial` is not a type; PostgreSQL stores `integer` with a sequence default, and
   // reports `integer` back. Spelling it as the database does is what lets a schema
   // read from migrations and one read from a live database compare byte for byte.
@@ -276,16 +282,38 @@ export class SchemaBuilder {
   }
 }
 
-/** One DDL text → a schema. */
-export async function parseDdl(sql: string, source = 'ddl'): Promise<DeclaredSchema> {
+export type Dialect = 'postgres' | 'mysql';
+
+/** One DDL text → a schema. MySQL is normalised into the one grammar first (ADR-0004). */
+export async function parseDdl(sql: string, source = 'ddl', dialect: Dialect = 'postgres'): Promise<DeclaredSchema> {
   const b = new SchemaBuilder();
-  await b.apply(sql, source);
+  await b.apply(dialect === 'mysql' ? mysqlToPostgres(sql).sql : sql, source);
   return b.build();
 }
 
+export interface FoldResult {
+  readonly schema: DeclaredSchema;
+  /** MySQL statements the rewrite had no rule for; reported, never guessed at (ADR-0004). */
+  readonly skipped: readonly { readonly file: string; readonly reason: string; readonly statement: string }[];
+}
+
 /** Migrations, applied in the order given — the caller sorts, because "in order" is the caller's convention. */
-export async function foldMigrations(files: readonly { readonly name: string; readonly sql: string }[]): Promise<DeclaredSchema> {
+export async function foldMigrations(files: readonly { readonly name: string; readonly sql: string }[], dialect: Dialect = 'postgres'): Promise<DeclaredSchema> {
+  return (await foldMigrationsReporting(files, dialect)).schema;
+}
+
+/** The same, and what it could not read. */
+export async function foldMigrationsReporting(files: readonly { readonly name: string; readonly sql: string }[], dialect: Dialect = 'postgres'): Promise<FoldResult> {
   const b = new SchemaBuilder();
-  for (const f of files) await b.apply(f.sql, f.name);
-  return b.build();
+  const skipped: { file: string; reason: string; statement: string }[] = [];
+  for (const f of files) {
+    if (dialect === 'mysql') {
+      const r = mysqlToPostgres(f.sql);
+      for (const s of r.skipped) skipped.push({ file: f.name, ...s });
+      await b.apply(r.sql, f.name);
+    } else {
+      await b.apply(f.sql, f.name);
+    }
+  }
+  return { schema: b.build(), skipped };
 }

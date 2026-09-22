@@ -67,7 +67,7 @@ erDiagram
 
 ## Status
 
-**Phase 4 of 5 — drift as a gate. The code is built; the gate is not cleared.**
+**Phase 5 of 5 — breadth. MySQL is in; two of the five ORM sources are.**
 `ledgerline check` runs on a repository with no configuration and no database,
 finds the relationships the queries rely on that no migration declares, and
 exits non-zero. There is a baseline for old codebases, `explain` with the DDL
@@ -77,18 +77,33 @@ Action that posts one pull-request comment and edits it in place. The tool
 gates itself: `make self-check` plants a drift in its own fixture and requires
 the check to fail.
 
-**What is not done:** running it against three real public repositories and
-reading every finding by hand to confirm it is true. Until that afternoon
-happens this is code that works on its own corpus, which is not the same claim.
+**MySQL** is normalised into the one grammar (ADR-0004) and says what it
+dropped rather than drawing a diagram that looks complete. The proof is a
+second 200-table corpus: the same generated schema as the PostgreSQL one, from
+the same seed, written the way MySQL writes it, asserted to reconcile to the
+same tables, columns, nullability, keys and all 375 foreign keys.
+
+**Rails `db/schema.rb` and Django `models.py`** are read as text and never run
+(ADR-0005), for the repositories that contain no SQL at all.
+
+**What is not done, in order of how much it matters:**
+
+1. Running the check against three real public repositories and reading every
+   finding by hand to confirm it is true — Phase 4's gate, and Phase 5 repeats
+   it for MySQL. Until that afternoon happens this is code that works on its
+   own corpus, which is not the same claim.
+2. **EF Core model snapshots, TypeORM entities and SQLAlchemy.** Three more
+   readers of the same shape as the two that exist. Not started.
 
 ```
 npx ledgerline check
 ```
 
-**The numbers.** 55 tests across five packages, two against a real PostgreSQL,
-one a 200-world property · 5 fixtures diffed on every build, one of 200 tables ·
-9 gates, three of them — the boundary, the fixtures and the tool itself — broken
-on purpose every run · 3 ADRs.
+**The numbers.** 69 tests across five packages, two against a real PostgreSQL,
+three of them 200-world properties · 6 fixtures diffed on every build, two of
+them 200 tables — the same schema in PostgreSQL and in MySQL · 9 gates, three
+of them — the boundary, the fixtures and the tool itself — broken on purpose
+every run · 5 ADRs.
 
 | | |
 |---|---|
