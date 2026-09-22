@@ -87,6 +87,14 @@ why its reader is the shortest and needed no conventions reproduced. The
 common rule that made all five tractable was the one from the Rails reader:
 return the schema *and* a list of lines you did not read.
 
+**A gate that is a coin toss teaches people to re-run the build.** The
+200-table render budget was two seconds; CI took 2059 ms and went red on a
+change that touched nothing near it. The number was measured on this machine
+and applied to a two-core shared runner. It is now stated per environment —
+8 s on CI, 2 s here — which is not a weakening: the regression it guards
+against is an accidental quadratic in the layout, and that costs tens of
+seconds on this corpus, not fifty-nine milliseconds.
+
 ### Still open
 
 - Phase 4's gate, and Phase 5's repetition of it for MySQL: three real public
