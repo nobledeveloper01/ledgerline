@@ -67,7 +67,7 @@ erDiagram
 
 ## Status
 
-**Phase 5 of 5 — breadth. MySQL is in; two of the five ORM sources are.**
+**Phase 5 of 5 — breadth. MySQL is in, and so are all five ORM sources.**
 `ledgerline check` runs on a repository with no configuration and no database,
 finds the relationships the queries rely on that no migration declares, and
 exits non-zero. There is a baseline for old codebases, `explain` with the DDL
@@ -83,27 +83,28 @@ second 200-table corpus: the same generated schema as the PostgreSQL one, from
 the same seed, written the way MySQL writes it, asserted to reconcile to the
 same tables, columns, nullability, keys and all 375 foreign keys.
 
-**Rails `db/schema.rb` and Django `models.py`** are read as text and never run
-(ADR-0005), for the repositories that contain no SQL at all.
+**Rails `db/schema.rb`, Django `models.py`, SQLAlchemy models, TypeORM
+entities and EF Core model snapshots** are read as text and **never executed**
+(ADR-0005), for the repositories that contain no SQL at all. Where a
+convention cannot be reproduced — a Rails plural the inflector does not know,
+a relation to a class in a file the reader never saw — the line is reported as
+unread and no edge is drawn. An invented edge is worse than a missing one,
+because the diagram would look complete.
 
-**What is not done, in order of how much it matters:**
-
-1. Running the check against three real public repositories and reading every
-   finding by hand to confirm it is true — Phase 4's gate, and Phase 5 repeats
-   it for MySQL. Until that afternoon happens this is code that works on its
-   own corpus, which is not the same claim.
-2. **EF Core model snapshots, TypeORM entities and SQLAlchemy.** Three more
-   readers of the same shape as the two that exist. Not started.
+**What is not done:** running the check against three real public repositories
+and reading every finding by hand to confirm it is true — Phase 4's gate, and
+Phase 5 repeats it for MySQL. Until that afternoon happens this is code that
+works on its own corpus, which is not the same claim.
 
 ```
 npx ledgerline check
 ```
 
-**The numbers.** 69 tests across five packages, two against a real PostgreSQL,
+**The numbers.** 74 tests across five packages, two against a real PostgreSQL,
 three of them 200-world properties · 6 fixtures diffed on every build, two of
 them 200 tables — the same schema in PostgreSQL and in MySQL · 9 gates, three
 of them — the boundary, the fixtures and the tool itself — broken on purpose
-every run · 5 ADRs.
+every run · 5 ADRs · 7 places a schema can come from, and none of them is run.
 
 | | |
 |---|---|

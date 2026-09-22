@@ -197,15 +197,15 @@ repeated in MySQL's spelling, and asserts that the same SQL read as PostgreSQL
 does *not* parse — so the dialect is proved to be doing the work rather than
 being a no-op that happens to be green.
 
-**Of the ORM sources, two are built and three are not.** Rails `schema.rb` and
-Django `models.py` are read (ADR-0005), wired into the CLI behind migrations,
-and tested against real-shaped files including the cases where the reader
-declines to guess. **EF Core model snapshots, TypeORM entities and SQLAlchemy
-are not built**, and nothing in the README or the changelog says they are.
-They are three more readers of the same shape; the reason they are not here is
-time, not difficulty.
+**All five ORM sources are built.** Rails `db/schema.rb`, Django `models.py`,
+SQLAlchemy models, TypeORM entities and EF Core model snapshots are read as
+text and never executed (ADR-0005), wired into the CLI behind migrations, and
+tested against real-shaped files — including, in every one of them, the case
+where the reader *declines to guess* and reports the line instead. A CLI test
+runs `check` on a repository whose only schema is two TypeORM entity files and
+watches it find a drift, so none of this is a reader nobody calls.
 
-**What the whole gate still waits on** is the Phase 4 half of it: the same
+**What the gate still waits on** is the Phase 4 half of it: the same
 three-real-repositories reading, done against MySQL repositories. That is the
 same afternoon of human reading Phase 4 waits on, and it is not claimed here
 either.

@@ -14,15 +14,21 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
   has no rule for — a partition clause, a generated column, a fulltext or
   spatial index, a trigger or a routine — is **skipped and counted**, never
   half-read. A diagram that quietly dropped a table would look complete.
-- **Rails `db/schema.rb` and Django `models.py` as schema sources.** For
-  repositories that contain no SQL at all. Both are read as text and **never
-  executed** (ADR-0005): running a repository's code to draw its diagram is a
-  liability, not a feature. Django's `<app>_<model>` table name comes from the
-  directory the file is in, because that is Django's rule; a `ManyToManyField`
-  becomes the join table Django would create. Where a convention cannot be
-  reproduced — a Rails foreign key whose column is derived from a plural the
-  inflector does not know, a `ForeignKey` to a model in another file — the
-  line is **reported as unread** and no edge is drawn.
+- **Five more places a schema can come from**, for repositories that contain
+  no SQL at all: Rails `db/schema.rb`, Django `models.py`, SQLAlchemy models,
+  TypeORM entities and an EF Core `…ModelSnapshot.cs`. All are read as text
+  and **never executed** (ADR-0005): running a repository's code to draw its
+  diagram is a liability, not a feature. Each is found by looking, so no
+  configuration is needed — a `models.py` is read as Django's or SQLAlchemy's
+  according to what the file says it is, not its name.
+- Each reader reproduces the conventions its ORM relies on and says so:
+  Django's `<app>_<model>` table name from the directory, Rails' singularised
+  foreign key column, TypeORM's snake_case default and `@JoinColumn`, EF Core's
+  `HasColumnName` and its second `Entity` block for relationships. A
+  `ManyToManyField` becomes the join table Django would create.
+- Where a convention cannot be reproduced — a Rails plural the inflector does
+  not know, a relation to a class in a file the reader never saw, an EF Core
+  `OwnsOne` — the line is **reported as unread** and no edge is drawn.
 - Migrations are still read first. An ORM file is used only when a repository
   has no migrations directory: two answers to one question is the thing this
   tool exists to complain about.

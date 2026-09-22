@@ -11,8 +11,11 @@ The surprises are the point.
 `ADD KEY` forms; a second 200-table corpus generated from the *same seed* as
 the PostgreSQL one and written the way MySQL writes it; a test that asserts
 the two corpora are the same schema; the Phase 2 property test repeated in
-MySQL's spelling; Rails `schema.rb` and Django `models.py` readers (ADR-0005)
-wired into the CLI behind migrations. 69 tests, 6 fixtures, 5 ADRs.
+MySQL's spelling; and all five ORM readers — Rails `schema.rb`, Django
+`models.py`, SQLAlchemy, TypeORM entities, EF Core model snapshots (ADR-0005)
+— wired into the CLI behind migrations, with a CLI test that runs `check` on a
+repository whose only schema is two TypeORM files. 74 tests, 6 fixtures,
+5 ADRs.
 
 ### What surprised us
 
@@ -40,12 +43,21 @@ get wrong. The reader does not draw an edge whose column the table does not
 have — it reports the line instead. Writing that rule was easier than writing
 the inflector, and it is the rule that makes the inflector's gaps harmless.
 
+**Five ORM readers, five different answers to the same question.** Each one
+has a place where the file does not say what the database will contain, and
+each place is a different shape: Django hides the table name in the directory,
+Rails hides the column name in an English plural, TypeORM hides it in a naming
+strategy, EF Core hides the relationship in a *second* block for the same
+entity further down the file, and SQLAlchemy hides nothing at all — which is
+why its reader is the shortest and needed no conventions reproduced. The
+common rule that made all five tractable was the one from the Rails reader:
+return the schema *and* a list of lines you did not read.
+
 ### Still open
 
 - Phase 4's gate, and Phase 5's repetition of it for MySQL: three real public
   repositories, every finding read by a person. Still an afternoon of reading,
-  still not done, still not claimed.
-- EF Core, TypeORM and SQLAlchemy readers. Three more of the same shape.
+  still not done, still not claimed. It is now the only thing left.
 
 ## 2026-09-23 — Phase 4's code: the command, the gate, and what is not cleared
 

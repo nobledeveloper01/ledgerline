@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -106,4 +106,28 @@ test('the pull-request comment leads with the sentence, then the detail, and fai
   assert.ok(lines.some((l) => l.startsWith('- **fail**')));
   assert.ok(lines.some((l) => l.includes('<details><summary>What this change did to the schema</summary>')));
   assert.ok(lines[lines.length - 1]!.includes('1 undeclared join'));
+});
+
+test('a repository with no SQL at all: the ORM file is the schema, and the queries still find the drift', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ledgerline-orm-'));
+  mkdirSync(join(root, 'src', 'entity'), { recursive: true });
+  writeFileSync(
+    join(root, 'src', 'entity', 'customer.entity.ts'),
+    `import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';\n\n@Entity('customers')\nexport class Customer {\n  @PrimaryGeneratedColumn()\n  id: number;\n\n  @Column({ type: 'varchar', length: 254 })\n  email: string;\n}\n`,
+  );
+  writeFileSync(
+    join(root, 'src', 'entity', 'order.entity.ts'),
+    `import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';\nimport { Customer } from './customer.entity';\n\n@Entity('orders')\nexport class Order {\n  @PrimaryGeneratedColumn()\n  id: number;\n\n  @Column({ type: 'int', nullable: true })\n  referrerId: number;\n\n  @ManyToOne(() => Customer)\n  @JoinColumn({ name: 'customer_id' })\n  customer: Customer;\n}\n`,
+  );
+  mkdirSync(join(root, 'reports'), { recursive: true });
+  writeFileSync(join(root, 'reports', 'referrals.sql'), 'SELECT o.id FROM orders o JOIN customers c ON c.id = o.referrer_id;\n');
+
+  const out = await check({ root });
+  const text = out.lines.join('\n');
+  // The schema came from the entities — no migrations, no database, no config.
+  assert.match(text, /2 TypeORM entities/);
+  // The declared relation is declared and used; the one only the query knows is the finding.
+  assert.match(text, /orders\.referrer_id → public\.customers\.id, which no constraint declares/);
+  assert.equal(out.code, 1);
+  rmSync(root, { recursive: true, force: true });
 });

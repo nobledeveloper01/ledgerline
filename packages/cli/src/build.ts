@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { reconcile, type Claims, type DeclaredSchema, type Model } from '@ledgerline/model';
-import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parsePrisma, parseRailsSchema, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
+import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parseEfCoreSnapshot, parsePrisma, parseRailsSchema, parseSqlAlchemyModels, parseTypeOrmEntities, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
 import { readFileSync } from 'node:fs';
 
 import type { Resolved } from './config.ts';
@@ -67,11 +67,29 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
     parts.push(parseRailsSchema(readFileSync(join(config.root, config.rails), 'utf8')).schema);
     names.push(config.rails);
   }
+  if (parts.length === 0 && config.efcore && existsSync(join(config.root, config.efcore))) {
+    parts.push(parseEfCoreSnapshot(readFileSync(join(config.root, config.efcore), 'utf8')).schema);
+    names.push(config.efcore);
+  }
+  if (parts.length === 0 && config.typeorm.length > 0) {
+    // Every entity file at once: a relation names a class in another file.
+    const files = config.typeorm.filter((f) => existsSync(join(config.root, f))).map((f) => ({ path: f, text: readFileSync(join(config.root, f), 'utf8') }));
+    if (files.length > 0) {
+      parts.push(parseTypeOrmEntities(files).schema);
+      names.push(`${files.length} TypeORM ${files.length === 1 ? 'entity' : 'entities'}`);
+    }
+  }
   if (parts.length === 0) {
     for (const models of config.django) {
       const full = join(config.root, models);
       if (!existsSync(full)) continue;
       parts.push(parseDjangoModels(readFileSync(full, 'utf8'), full).schema);
+      names.push(models);
+    }
+    for (const models of config.sqlalchemy) {
+      const full = join(config.root, models);
+      if (!existsSync(full)) continue;
+      parts.push(parseSqlAlchemyModels(readFileSync(full, 'utf8')).schema);
       names.push(models);
     }
   }

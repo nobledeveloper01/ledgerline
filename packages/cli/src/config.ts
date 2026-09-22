@@ -31,9 +31,11 @@ export const MIGRATION_DIRS = [
 
 export const PRISMA_FILES = ['prisma/schema.prisma', 'schema.prisma'];
 
-/** Where Rails and Django put the file that *is* the schema for those teams. */
+/** Where Rails puts the file that *is* the schema for a Rails team. */
 export const RAILS_FILES = ['db/schema.rb', 'db/primary_schema.rb'];
-export const DJANGO_GLOB_ROOTS = ['.', 'src', 'apps'];
+
+/** Directories that are never descended into when looking for an ORM's files. */
+const SKIP = new Set(['node_modules', 'vendor', 'bin', 'obj', 'dist', 'build', 'target', '__pycache__', 'venv', '.venv', 'site-packages']);
 
 export interface Config {
   /** `postgres` (default) or `mysql`; MySQL DDL is normalised into the one grammar (ADR-0004). */
@@ -46,6 +48,12 @@ export interface Config {
   readonly rails?: string;
   /** Django `models.py` files; the directory of each is its app label. Found by looking when absent. */
   readonly django?: readonly string[];
+  /** SQLAlchemy model files. Found by looking when absent — a `models.py` that names a declarative base. */
+  readonly sqlalchemy?: readonly string[];
+  /** TypeORM entity files. Found by looking when absent — `*.entity.ts`. */
+  readonly typeorm?: readonly string[];
+  /** An EF Core `…ModelSnapshot.cs`. Found by looking when absent. */
+  readonly efcore?: string;
   /** Where the queries are: directories of `.sql` and of source files. The whole repository when absent. */
   readonly queries?: readonly string[];
   /** Query logs: plain SQL, `pg_stat_statements` JSON, or CSV with a `query` column. */
@@ -66,6 +74,9 @@ export interface Resolved {
   readonly prisma: string | null;
   readonly rails: string | null;
   readonly django: readonly string[];
+  readonly sqlalchemy: readonly string[];
+  readonly typeorm: readonly string[];
+  readonly efcore: string | null;
   readonly queries: readonly string[];
   readonly logs: readonly string[];
   readonly ignore: readonly string[];
@@ -76,23 +87,43 @@ export interface Resolved {
 }
 
 /**
- * Django's models live wherever the apps live, so the only honest default is
- * to look — two directories deep from a small set of roots, which covers the
- * layout `django-admin startproject` makes and the `src/` and `apps/` variants
- * without walking a whole repository looking for Python.
+ * Files an ORM's schema lives in, found by looking — bounded in depth, because
+ * a default that walks a whole monorepo to draw one diagram is a default
+ * nobody leaves on.
  */
-export function findDjangoModels(root: string): string[] {
+export function findFiles(root: string, matches: (name: string, dir: string) => boolean, maxDepth = 4): string[] {
   const out: string[] = [];
-  for (const base of DJANGO_GLOB_ROOTS) {
-    const dir = join(root, base);
-    if (!existsSync(dir)) continue;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-      const candidate = join(base, entry.name, 'models.py');
-      if (existsSync(join(root, candidate))) out.push(candidate);
+  const walk = (relative: string, depth: number): void => {
+    let entries;
+    try {
+      entries = readdirSync(join(root, relative) || root, { withFileTypes: true });
+    } catch {
+      return;
     }
-  }
+    for (const entry of entries) {
+      const path = relative === '' ? entry.name : `${relative}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (depth >= maxDepth || entry.name.startsWith('.') || SKIP.has(entry.name)) continue;
+        walk(path, depth + 1);
+      } else if (matches(entry.name, relative)) {
+        out.push(path);
+      }
+    }
+  };
+  walk('', 0);
   return out.sort();
+}
+
+/**
+ * `models.py` belongs to Django or to SQLAlchemy, and the file says which:
+ * SQLAlchemy writes `__tablename__` and a declarative base, Django subclasses
+ * `models.Model`. Guessing from the filename would give one reader the other's
+ * files, so the content decides.
+ */
+export function ormKindOf(text: string): 'django' | 'sqlalchemy' | null {
+  if (/__tablename__|declarative_base|DeclarativeBase|sqlalchemy/.test(text)) return 'sqlalchemy';
+  if (/models\.Model|from\s+django/.test(text)) return 'django';
+  return null;
 }
 
 export function readConfig(root: string): Config {
@@ -109,13 +140,19 @@ export function resolveConfig(root: string, config: Config = readConfig(root)): 
   const migrations = config.migrations ?? MIGRATION_DIRS.filter((d) => existsSync(join(root, d)));
   const prisma = config.prisma ?? PRISMA_FILES.find((f) => existsSync(join(root, f))) ?? null;
   const rails = config.rails ?? RAILS_FILES.find((f) => existsSync(join(root, f))) ?? null;
+  // One list of `models.py`, split by what each file actually says it is.
+  const pythonModels = config.django === undefined || config.sqlalchemy === undefined ? findFiles(root, (name) => name === 'models.py' || name === 'model.py') : [];
+  const kinds = new Map(pythonModels.map((f) => [f, ormKindOf(readFileSync(join(root, f), 'utf8'))]));
   return {
     root,
     dialect: config.dialect ?? 'postgres',
     migrations,
     prisma,
     rails,
-    django: config.django ?? findDjangoModels(root),
+    django: config.django ?? pythonModels.filter((f) => kinds.get(f) === 'django'),
+    sqlalchemy: config.sqlalchemy ?? pythonModels.filter((f) => kinds.get(f) === 'sqlalchemy'),
+    typeorm: config.typeorm ?? findFiles(root, (name) => name.endsWith('.entity.ts')),
+    efcore: config.efcore ?? findFiles(root, (name, dir) => name.endsWith('ModelSnapshot.cs') && /(^|\/)Migrations$/i.test(dir))[0] ?? null,
     queries: config.queries ?? ['.'],
     logs: config.logs ?? [],
     ignore: config.ignore ?? [],

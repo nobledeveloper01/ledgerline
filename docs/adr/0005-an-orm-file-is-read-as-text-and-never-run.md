@@ -25,7 +25,14 @@ environment to draw a picture.
 `t.timestamps`, `t.index … unique: true`, and `add_foreign_key`.
 `parseDjangoModels` reads `class X(models.Model)`, the field classes, `Meta`'s
 `db_table`, `unique_together`, `managed` and `abstract`, and the three relation
-fields.
+fields. `parseSqlAlchemyModels` reads `__tablename__`, `Column` and
+`mapped_column` in both the classic and the 2.0 spelling, and `ForeignKey`.
+`parseTypeOrmEntities` reads the decorators, across every entity file at once
+because a relation names a class in another. `parseEfCoreSnapshot` reads
+`modelBuilder.Entity`, `b.Property<T>`, `HasColumnType`, `HasColumnName`,
+`HasKey`, `HasIndex … IsUnique`, `ToTable` and the `HasOne … HasForeignKey`
+chain — which EF Core writes in a *second* block for the same entity, so the
+reader collects entities first and resolves relationships after.
 
 Three consequences, all accepted deliberately:
 
@@ -34,7 +41,10 @@ Three consequences, all accepted deliberately:
    directory. So the reader takes the *path*, not just the text. Rails derives
    a foreign key's column by singularising the table name, so this repository
    contains an inflector — a small one, with the regular rules and a list of
-   irregulars.
+   irregulars. TypeORM's default naming strategy is snake_case, and a relation
+   with no `@JoinColumn` is `<property>_id`. SQLAlchemy is the exception that
+   proves the point: it writes the table name and the foreign key's target
+   down, so its reader reproduces nothing, and is the shortest of the five.
 2. **What the convention cannot reach is reported, never guessed.** If
    `add_foreign_key "traps", "mice"` implies a column `traps.mouse_id` and the
    table has no such column, no edge is drawn and the line is listed as unread.
@@ -58,8 +68,9 @@ than a schema alone. A user can see the size of what was skipped; a silent
 reader cannot be audited.
 
 Running the file would be more complete and would cost a Ruby toolchain, a
-Python toolchain, a working settings module, and arbitrary code execution on
-whatever runs `ledgerline`. Nothing leaves this machine (rule 4), and that
+Python toolchain, a Node toolchain with the application's own dependencies, a
+.NET SDK, a working settings module, and arbitrary code execution on whatever
+runs `ledgerline`. Nothing leaves this machine (rule 4), and that
 includes control of it.
 
 ## Alternatives rejected
@@ -70,5 +81,5 @@ includes control of it.
 - **Read the ORM's migrations instead.** Rails and Django migrations are
   programs too, and are worse: they are a sequence of programs, each of which
   may branch on the database's state.
-- **Read nothing and tell Rails and Django users to export SQL.** Honest, and
-  it hands the two biggest populations of "no SQL in the repository" nothing.
+- **Read nothing and tell these users to export SQL.** Honest, and it hands
+  every population of "no SQL in the repository" nothing.
