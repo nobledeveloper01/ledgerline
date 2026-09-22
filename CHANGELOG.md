@@ -163,6 +163,15 @@ described.
   has no rule for — a partition clause, a generated column, a fulltext or
   spatial index, a trigger or a routine — is **skipped and counted**, never
   half-read. A diagram that quietly dropped a table would look complete.
+- **Go struct tags — xorm and GORM — as a schema source**, which was the last
+  large ecosystem with no reader. It is also the one this tool has most to say
+  about: neither ORM creates a foreign key constraint, so a Go application of
+  that shape has its relationships *only* in its queries. Woodpecker CI reads
+  as 19 tables and **29 columns whose names promise a relationship that
+  nothing declares**. `TableName()` names the table when the repository
+  defines one — often in another file, so every file is read first — and where
+  it does not, the ORM's own default mapper is used and the assumption is
+  reported.
 - **sequelize-typescript models as a schema source.** A Sequelize repository
   has no file that is the schema: its migrations are *JavaScript* calling
   `queryInterface.createTable` and its models are decorated TypeScript
@@ -172,10 +181,10 @@ described.
   table, and a base class lends its columns to everything that extends it —
   which is where the primary key lives in every Sequelize repository worth
   reading.
-- **Six more places a schema can come from**, for repositories that contain
+- **Seven more places a schema can come from**, for repositories that contain
   no SQL at all: Rails `db/schema.rb`, Django `models.py`, SQLAlchemy models,
-  TypeORM entities, sequelize-typescript models and an EF Core
-  `…ModelSnapshot.cs`. All are read as text
+  TypeORM entities, sequelize-typescript models, Go structs with xorm or GORM
+  tags, and an EF Core `…ModelSnapshot.cs`. All are read as text
   and **never executed** (ADR-0005): running a repository's code to draw its
   diagram is a liability, not a feature. Each is found by looking, so no
   configuration is needed — a `models.py` is read as Django's or SQLAlchemy's

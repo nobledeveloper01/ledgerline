@@ -118,13 +118,13 @@ export function skipPattern(ignore: readonly string[]): RegExp {
     .filter((p) => p.length > 0)
     .map((p) => p.replace(/^\.\//, '').replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const extra = escaped.length === 0 ? '' : `|(^|[\\\\/])(${escaped.join('|')})([\\\\/]|$)`;
-  // `migrations` and `migrate` are on the built-in list for the same reason
+  // `migrations`, `migration` and `migrate` are on the built-in list for the same reason
   // the configured migration directories are: a migration is not a query the
   // application runs. Kratos vendors another tool's migration *test stubs*
   // under `oryx/popx/stub/migrations`, and reading those `.down.sql` files as
   // queries produced six failing findings about tables that a down script
   // drops — every one of them true of a fixture and false of the product.
-  return new RegExp(`(^|[\\\\/])(node_modules|\\.git|dist|build|vendor|\\.next|target|migrations|migrate)([\\\\/]|$)${extra}`);
+  return new RegExp(`(^|[\\\\/])(node_modules|\\.git|dist|build|vendor|\\.next|target|migrations|migration|migrate)([\\\\/]|$)${extra}`);
 }
 
 /** A file that vanished or cannot be read is skipped, for the reason `walk` gives. */

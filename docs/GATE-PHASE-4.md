@@ -13,21 +13,21 @@ the point.
 
 ---
 
-## The five
+## The six
 
-| | Mastodon | Outline | NetBox | memos | Kratos |
-|---|---|---|---|---|---|
-| Stack | Rails 7.1 | Sequelize (TS) | Django 5 | Go, raw SQL | Go, raw SQL |
-| Schema read from | `db/schema.rb` | 57 model files | 38 model files | `store/migration/postgres` | 3483 migration files, one glob |
-| Tables | 116 | 41 | 91 | 17 | 31 |
-| SQL statements found | 22 in 17 files | 22 in 14 files | 3 in 6 files | **187 in 64 files** | **201 in 97 files** |
-| Statements refused | 2 | 2 | 4 | 120 | 45 |
-| `fail` findings | 0 | 0 | 0 | **4** | 0 |
-| `warn` findings | 13 | 38 | 0 | 3 | 30 |
-| `info` findings | 9 | 0 | 0 | 4 | 1 |
-| Exit code | 0 | 0 | 0 | **1** | 0 |
+| | Mastodon | Outline | NetBox | memos | Kratos | Woodpecker |
+|---|---|---|---|---|---|---|
+| Stack | Rails | Sequelize | Django | Go, raw SQL | Go, raw SQL | Go, xorm |
+| Schema read from | `db/schema.rb` | 57 model files | 38 model files | `store/migration/postgres` | 3483 migrations, one glob | 18 Go model files |
+| Tables | 116 | 41 | 91 | 17 | 31 | 19 |
+| SQL statements found | 22 in 17 | 22 in 14 | 3 in 6 | **187 in 64** | **201 in 97** | 1 in 1 |
+| Statements refused | 2 | 2 | 4 | 120 | 45 | 0 |
+| `fail` findings | 0 | 0 | 0 | **4** | 0 | 0 |
+| `warn` findings | 13 | 38 | 0 | 3 | 30 | 0 |
+| `info` findings | 9 | 0 | 0 | 4 | 1 | **29** |
+| Exit code | 0 | 0 | 0 | **1** | 0 | 0 |
 
-All five were shallow clones of `main` on 2026-09-23. The NetBox tree was
+All six were shallow clones of `main` on 2026-09-23. The NetBox tree was
 partially materialised at the time of the run, so its 91 tables are a subset
 of the whole; the others are complete.
 
@@ -193,6 +193,29 @@ entry now takes a filename glob; and it **vendors another tool's migration
 test stubs**, whose `.down.sql` files were read as application queries and
 produced six failing findings about tables a down script drops.
 
+### Woodpecker CI — 29 naming-drift findings, all true, and no query to read
+
+Woodpecker keeps its schema in Go structs with xorm tags, which was the last
+large ecosystem this tool could not read at all. A Go reader now exists
+(`packages/sources/src/gostructs.ts`), and Woodpecker reads as 19 tables.
+
+**xorm declares no foreign key constraints, anywhere in the repository.** So
+all 29 findings — `configs.repo_id` named like a reference to `repos`,
+`crons.repo_id`, `log_entries.step_id`, `feed.pipeline_id` and twenty-five
+more — are true by construction, and each names a real column: `RepoID int64
+\`xorm:"UNIQUE(s) 'repo_id'"\`` is right there in `server/model/config.go:21`.
+
+It does **not** meet the gate either, and for a new reason: xorm builds its
+queries programmatically — `session.Where(...)` — so there is *one* SQL
+statement in the whole repository to read. The relationships are real, the
+constraints are absent, and the queries that would prove it are not text.
+That is a fourth distinct way a repository can be outside this gate's reach,
+and it is worth knowing before choosing the next two.
+
+Woodpecker also found that the query scan skipped `migrations/` and
+`migrate/` but not `migration/`, so a Go migration file was being read as
+application code and produced two failing findings about a one-off data fix.
+
 ### NetBox — nothing, correctly
 
 91 tables, 3 SQL statements in the whole repository, none of them naming a
@@ -207,7 +230,7 @@ exist.
 
 ## What the three repositories changed in the tool
 
-Twenty-one fixes, none of which the 200-table fixture corpus had ever
+Twenty-three fixes, none of which the 200-table fixture corpus had ever
 provoked.
 The full list is in `CHANGELOG.md`; the ones that mattered most:
 
@@ -227,7 +250,12 @@ The full list is in `CHANGELOG.md`; the ones that mattered most:
 ## What a person still has to do
 
 - Find two more repositories like memos — applications that write their own
-  SQL *and* leave relationships undeclared. Kratos writes its own SQL and
+  SQL *as text* **and** leave relationships undeclared. Six runs have found
+  four distinct ways to miss: an ORM that leaves no SQL (Mastodon, NetBox,
+  Outline), an application that declares its constraints properly (Kratos), a
+  query builder that never produces a string (Woodpecker), and — the one that
+  works — an application that writes SQL by hand and skips the constraints
+  (memos). Kratos writes its own SQL and
   declares its constraints properly, so it produced none; that is a pass for
   Kratos and not one for the gate. That is what is left of the gate, and memos shows it is
   reachable. Or decide the gate should ask for a query log instead, and say

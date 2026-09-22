@@ -85,21 +85,22 @@ the same seed, written the way MySQL writes it, asserted to reconcile to the
 same tables, columns, nullability, keys and all 375 foreign keys.
 
 **Rails `db/schema.rb`, Django `models.py`, SQLAlchemy models, TypeORM
-entities, sequelize-typescript models and EF Core model snapshots** are read as text and **never executed**
+entities, sequelize-typescript models, Go structs with xorm or GORM tags, and
+EF Core model snapshots** are read as text and **never executed**
 (ADR-0005), for the repositories that contain no SQL at all. Where a
 convention cannot be reproduced — a Rails plural the inflector does not know,
 a relation to a class in a file the reader never saw — the line is reported as
 unread and no edge is drawn. An invented edge is worse than a missing one,
 because the diagram would look complete.
 
-**What is not done:** Phase 4's gate. The check *has* been run against five
-real public repositories — Mastodon, Outline, NetBox, memos and Ory Kratos —
-and every
+**What is not done:** Phase 4's gate. The check *has* been run against six
+real public repositories — Mastodon, Outline, NetBox, memos, Ory Kratos and
+Woodpecker CI — and every
 finding checked against the repository's own schema file.
 [`docs/GATE-PHASE-4.md`](docs/GATE-PHASE-4.md) is the whole of it: nine true
 findings on Mastodon, **four true undeclared relationships on memos with the
 file and line of the join that relies on each**, one false finding found and
-fixed, and twenty-one bugs in this tool — including a false positive on
+fixed, and twenty-three bugs in this tool — including a false positive on
 Kratos that fired on every query in the repository (ADR-0007). The gate asks
 for three such repositories and one has been found, so it is still open.
 
@@ -107,11 +108,11 @@ for three such repositories and one has been found, so it is still open.
 npx ledgerline check
 ```
 
-**The numbers.** 76 tests across five packages, two against a real PostgreSQL,
+**The numbers.** 93 tests across five packages, two against a real PostgreSQL,
 three of them 200-world properties · 6 fixtures diffed on every build, two of
 them 200 tables — the same schema in PostgreSQL and in MySQL · 10 gates, four
 of them — the boundary, reachability, the fixtures and the tool itself — broken
-on purpose every run · 7 ADRs · 10 commands · 8 places a schema can come
+on purpose every run · 7 ADRs · 10 commands · 9 places a schema can come
 from, and none of them is run.
 
 | | |

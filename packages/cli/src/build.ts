@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { EMPTY_SCHEMA, reconcile, type Claims, type DeclaredSchema, type Model } from '@ledgerline/model';
-import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parseEfCoreSnapshot, parsePrisma, parseRailsSchema, parseSequelizeModels, splitGlob, parseSqlAlchemyModels, parseTypeOrmEntities, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
+import { claimsFromLog, claimsFromRepository, claimsFromSqlFiles, parseDjangoModels, parseEfCoreSnapshot, parsePrisma, parseGoStructs, parseRailsSchema, parseSequelizeModels, splitGlob, parseSqlAlchemyModels, parseTypeOrmEntities, schemaFromDatabase, schemaFromMigrations, type Gathered } from '@ledgerline/sources';
 import { readFileSync } from 'node:fs';
 
 import type { Resolved } from './config.ts';
@@ -103,6 +103,16 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
     if (read.schema.tables.length > 0) {
       parts.push(read.schema);
       names.push(`${files.length} Sequelize model${files.length === 1 ? '' : 's'}`);
+    }
+  }
+  if (parts.length === 0 && config.gostructs.length > 0) {
+    // Every model file at once: `TableName()` often lives in a different file
+    // from the struct it names.
+    const files = config.gostructs.filter((f) => existsSync(join(config.root, f))).map((f) => ({ path: f, text: readFileSync(join(config.root, f), 'utf8') }));
+    const read = parseGoStructs(files);
+    if (read.schema.tables.length > 0) {
+      parts.push(read.schema);
+      names.push(`${files.length} Go model file${files.length === 1 ? '' : 's'}`);
     }
   }
   if (parts.length === 0 && config.django.length > 0) {

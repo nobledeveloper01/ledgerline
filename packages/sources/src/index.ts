@@ -10,6 +10,7 @@ export { parseSqlAlchemyModels, type SqlAlchemySchema } from './sqlalchemy.ts';
 export { parseTypeOrmEntities, snakeCase, type TypeOrmSchema } from './typeorm.ts';
 export { parseEfCoreSnapshot, type EfCoreSchema } from './efcore.ts';
 export { parseSequelizeModels, pluralize, baseClassOf, type SequelizeSchema } from './sequelize.ts';
+export { parseGoStructs, pluralizeSnake, type GoStructSchema } from './gostructs.ts';
 export { schemaFromDatabase } from './live.ts';
 export { MODEL_FILE, FORMAT_VERSION, serializeModel, writeModel, readModel } from './modelfile.ts';
 export { claimsFromSqlFiles, claimsFromLog, claimsFromSource, claimsFromRepository, stringLiterals, skipPattern, type Gathered, type DialectOf } from './queries.ts';

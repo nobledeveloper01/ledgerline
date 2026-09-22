@@ -64,6 +64,8 @@ export interface Config {
   readonly sequelize?: readonly string[];
   /** An EF Core `…ModelSnapshot.cs`. Found by looking when absent. */
   readonly efcore?: string;
+  /** Go structs with xorm or GORM tags. Found by looking when absent — `.go` under a `model/` directory. */
+  readonly gostructs?: readonly string[];
   /** Where the queries are: directories of `.sql` and of source files. The whole repository when absent. */
   readonly queries?: readonly string[];
   /** Query logs: plain SQL, `pg_stat_statements` JSON, or CSV with a `query` column. */
@@ -93,6 +95,7 @@ export interface Resolved {
   readonly typeorm: readonly string[];
   readonly sequelize: readonly string[];
   readonly efcore: string | null;
+  readonly gostructs: readonly string[];
   readonly queries: readonly string[];
   readonly logs: readonly string[];
   readonly ignore: readonly string[];
@@ -178,6 +181,22 @@ export function dialectResolver(setting: Config['dialect']): (path: string) => D
   };
 }
 
+/**
+ * Go's models live wherever the author put them, but a `model/` or `models/`
+ * directory is the overwhelming convention, and a file carrying an `xorm:` or
+ * `gorm:` tag says what it is. Both must hold, so a request body in a
+ * `model/` directory is not mistaken for a table.
+ */
+export function findGoModels(root: string): string[] {
+  return findFiles(root, (name, dir) => name.endsWith('.go') && !name.endsWith('_test.go') && /(^|\/)models?(\/|$)/.test(dir), 6).filter((f) => {
+    try {
+      return /\b(xorm|gorm):"/.test(readFileSync(join(root, f), 'utf8'));
+    } catch {
+      return false;
+    }
+  });
+}
+
 export function readConfig(root: string): Config {
   const path = join(root, CONFIG_FILE);
   if (!existsSync(path)) return {};
@@ -212,6 +231,7 @@ export function resolveConfig(root: string, config: Config = readConfig(root)): 
     typeorm: config.typeorm ?? findFiles(root, (name) => name.endsWith('.entity.ts')),
     sequelize: config.sequelize ?? findSequelizeModels(root),
     efcore: config.efcore ?? findFiles(root, (name, dir) => name.endsWith('ModelSnapshot.cs') && /(^|\/)Migrations$/i.test(dir))[0] ?? null,
+    gostructs: config.gostructs ?? findGoModels(root),
     queries: config.queries ?? ['.'],
     logs: config.logs ?? [],
     ignore: config.ignore ?? [],

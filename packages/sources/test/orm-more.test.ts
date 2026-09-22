@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { baseClassOf, parseEfCoreSnapshot, parseSequelizeModels, parseSqlAlchemyModels, parseTypeOrmEntities, snakeCase } from '../src/index.ts';
+import { baseClassOf, parseEfCoreSnapshot, parseGoStructs, parseSequelizeModels, parseSqlAlchemyModels, parseTypeOrmEntities, snakeCase } from '../src/index.ts';
 
 const here = join(import.meta.dirname, 'orm');
 const read = (...parts: string[]): string => readFileSync(join(here, ...parts), 'utf8');
@@ -158,4 +158,45 @@ test('the base class is read past the type parameters, not from the first `exten
   assert.equal(baseClassOf('class IdModel<\n  T extends object = any,\n> extends Model<T> '), 'Model');
   assert.equal(baseClassOf('class Plain extends Base '), 'Base');
   assert.equal(baseClassOf('class Alone '), null);
+});
+
+test('Go struct tags read back as the tables xorm and GORM would create', () => {
+  const dir = join(here, 'go');
+  const files = ['repo.go', 'names.go', 'gorm.go'].map((f) => ({ path: join(dir, f), text: read('go', f) }));
+  const { schema, unread } = parseGoStructs(files);
+
+  // `TableName()` lives in another file and still names the table; GORM's
+  // default mapper pluralises where xorm's does not.
+  assert.deepEqual(schema.tables.map((t) => t.name), ['invoices', 'repos']);
+  assert.ok(!schema.tables.some((t) => t.name === 'search_requests'), 'a struct with no ORM tag is not a table');
+
+  const repos = schema.tables.find((t) => t.name === 'repos')!;
+  assert.deepEqual(repos.columns, [
+    { name: 'id', type: 'bigint', nullable: false },
+    { name: 'user_id', type: 'bigint', nullable: true },
+    { name: 'org_id', type: 'bigint', nullable: true },
+    { name: 'owner', type: 'text', nullable: true },
+    { name: 'avatar', type: 'character varying(500)', nullable: true },
+    { name: 'trusted', type: 'jsonb', nullable: true },
+    { name: 'timeout', type: 'bigint', nullable: true },
+    { name: 'created', type: 'timestamp with time zone', nullable: true },
+  ]);
+  assert.deepEqual(repos.primaryKey, ['id']);
+  assert.deepEqual(repos.uniques, [['owner']]);
+  assert.ok(!repos.columns.some((c) => c.name === 'internal'), 'a field tagged `-` is not a column');
+
+  const invoices = schema.tables.find((t) => t.name === 'invoices')!;
+  assert.deepEqual(invoices.columns, [
+    { name: 'id', type: 'bigint', nullable: false },
+    { name: 'reference', type: 'character varying(64)', nullable: false },
+    { name: 'body', type: 'text', nullable: true },
+    { name: 'company_ref', type: 'bigint', nullable: true },
+  ]);
+  assert.deepEqual(invoices.uniques, [['reference']]);
+
+  // Neither ORM declares a foreign key, and that is the whole point: in a
+  // repository of this shape every relationship lives in a query.
+  assert.deepEqual(schema.foreignKeys, []);
+  // And the one guess it had to make is named.
+  assert.ok(unread.some((u) => /Invoice has no TableName\(\), so its table is gorm's default mapping: invoices/.test(u.reason)), JSON.stringify(unread));
 });

@@ -195,10 +195,35 @@ writes its own SQL *and* declares its constraints. Good for Kratos, and not a
 pass for the gate, which needs repositories that do the first and not the
 second.
 
+### Woodpecker, and the last ecosystem with no reader
+
+Go keeps its schema in struct tags — xorm and GORM — and this tool could read
+none of it. There is a seventh reader now, and it is the one with most to say:
+**neither ORM creates a foreign key constraint**, so a Go application of that
+shape has its relationships only in its queries. Woodpecker CI reads as 19
+tables and 29 columns whose names promise a relationship nothing declares,
+every one of them true by construction.
+
+And it misses the gate for a *fourth* distinct reason. xorm builds its queries
+programmatically — `session.Where(...)` — so there is one SQL statement in the
+whole repository to read. The relationships are real, the constraints are
+absent, and the evidence is not text. Six runs, four ways to be outside this
+gate's reach:
+
+| | why it cannot meet the gate |
+|---|---|
+| Mastodon, NetBox, Outline | an ORM leaves almost no SQL |
+| Kratos | writes its own SQL, and declares its constraints properly |
+| Woodpecker | a query builder never produces a string |
+| **memos** | **writes SQL by hand and skips the constraints — this one works** |
+
+Knowing the four shapes is worth more than a third repository would have been,
+because it says what to look for.
+
 ### Still open
 
-- The gate. Five repositories are run, every finding is checked, and the
-  evidence is in `docs/GATE-PHASE-4.md`. One of the five meets the gate's
+- The gate. Six repositories are run, every finding is checked, and the
+  evidence is in `docs/GATE-PHASE-4.md`. One of the six meets the gate's
   actual criterion; it asks for three. What is left is finding two more
   applications that write their own SQL — a search, not a script — and a
   person reading the findings. It is still not claimed.

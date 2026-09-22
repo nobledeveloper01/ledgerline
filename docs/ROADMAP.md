@@ -162,10 +162,11 @@ this repository.*
 
 **The gate has been run against three repositories, and is still not
 cleared** — read `docs/GATE-PHASE-4.md`, which is the evidence and not the
-verdict. Mastodon, Outline, NetBox, memos and Kratos were run on 2026-09-23;
+verdict. Mastodon, Outline, NetBox, memos, Kratos and Woodpecker CI were run on
+2026-09-23;
 every finding was checked against the repository's own schema file; nine
 findings on Mastodon and four on memos were confirmed true, and one false one
-was found and fixed. Twenty-one bugs in this tool came out of it, including a
+was found and fixed. Twenty-three bugs in this tool came out of it, including a
 check that went green on a repository it could not read, and a false positive
 on Kratos that fired on every query in the repository (ADR-0007).
 
@@ -229,6 +230,12 @@ including, in every one of them, the case where the reader *declines to guess*
 and reports the line instead. A CLI test runs `check` on a repository whose
 only schema is two TypeORM entity files and watches it find a drift, so none
 of this is a reader nobody calls.
+
+**Go structs with xorm or GORM tags** were added for the same reason, and are
+the reader with the most to say: neither ORM creates a foreign key, so a Go
+application of that shape keeps every relationship in its queries. Woodpecker
+CI reads as 19 tables and 29 columns whose names promise a relationship that
+nothing declares.
 
 **sequelize-typescript** was added because running the check on a real
 repository demanded it: Outline has 30 MB of TypeScript, 56 real SQL
