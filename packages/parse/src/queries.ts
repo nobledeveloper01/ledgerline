@@ -291,6 +291,11 @@ class Walker {
   }
 
   private column(scope: Scope, n: Node): Resolved | null {
+    // `o.user_id::integer` is still `o.user_id`. A cast on one side of a join
+    // is ordinary — a uuid column compared to a text one, an integer widened
+    // — and reading through it costs nothing.
+    const cast = n['TypeCast'] as { arg?: Node } | undefined;
+    if (cast?.arg) return this.column(scope, cast.arg);
     const c = n['ColumnRef'] as { fields: unknown[] } | undefined;
     if (!c) return null;
     const fields = c.fields.map(str).filter((f) => f.length > 0);
@@ -462,7 +467,11 @@ export function normalisePlaceholders(sql: string): string {
     .replace(/#\{[^}]*\}/g, () => `$${++n}`)
     .replace(/%\([\w.]+\)s/g, () => `$${++n}`)
     .replace(/(?<![\w%])%[sd]\b/g, () => `$${++n}`)
-    .replace(/(?<![\w:]):[a-zA-Z_]\w*\b(?!\s*::)/g, () => `$${++n}`)
+    // `:name`. The lookbehind is what keeps the `uuid` of `x::uuid` out of
+    // it; a lookahead that also refused `::` was wrong, because `:startUuid::uuid`
+    // is an ordinary named parameter with a cast on it — and it was the single
+    // biggest reason real SQL in Outline went unread.
+    .replace(/(?<![\w:]):[a-zA-Z_]\w*\b/g, () => `$${++n}`)
     .replace(/\?(?!\?)/g, () => `$${++n}`);
 }
 
@@ -485,6 +494,28 @@ export function mysqlQueryToPostgres(sql: string): string {
     .replace(/\blimit\s+(\d+)\s*,\s*(\d+)/gi, (_, a: string, b: string) => `LIMIT ${b} OFFSET ${a}`);
 }
 
+/**
+ * An interpolation where a *name* goes, not a value.
+ *
+ * `SELECT "documentId" FROM ${this.workingTable}` is a real statement in
+ * Outline, and `${…}` is a table name there rather than a parameter. Which
+ * one it is cannot be known from the text, and a value is much the commoner
+ * case — so the value reading is tried first, and this is the second attempt,
+ * made only when the first failed to parse.
+ *
+ * The name it substitutes is a placeholder, and nothing that touches it is
+ * kept: a table whose name is computed at run time is not a table this tool
+ * can say anything about, and reporting it as *queried and undeclared* would
+ * be a failing finding about a string. What the retry is for is the rest of
+ * the statement — the joins between real tables in it — and not counting a
+ * statement it could read as one it could not.
+ */
+const INTERPOLATED_NAME = 'ledgerline_interpolated';
+
+function asIdentifiers(sql: string): string {
+  return sql.replace(/\$\{[^}]*\}/g, INTERPOLATED_NAME).replace(/#\{[^}]*\}/g, INTERPOLATED_NAME);
+}
+
 export async function claimsFromSql(sql: string, at: QuerySource, schema: DeclaredSchema | null = null, dialect: QueryDialect = 'postgres'): Promise<QueryClaims> {
   const p = await pg();
   const relationships: RelationshipClaim[] = [];
@@ -492,7 +523,8 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
   const mentions = new Set<string>();
   let parsed = 0;
   let unparsed = 0;
-  const text = normalisePlaceholders(dialect === 'mysql' ? mysqlQueryToPostgres(sql) : sql);
+  const original = dialect === 'mysql' ? mysqlQueryToPostgres(sql) : sql;
+  const text = normalisePlaceholders(original);
   let stmts: readonly { stmt: Node; stmt_location?: number }[];
   try {
     stmts = (await p.parse(text)).stmts;
@@ -500,7 +532,15 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
     // Try statement by statement, so one bad one costs only itself.
     stmts = [];
     let offset = 0;
-    for (const piece of text.split(/;(?=(?:[^']*'[^']*')*[^']*$)/)) {
+    const SPLIT = /;(?=(?:[^']*'[^']*')*[^']*$)/;
+    // The same split of the text before placeholders were rewritten, so the
+    // second attempt below can see the interpolation the first one replaced.
+    // Neither `;` nor a quote is added or removed by that rewrite, so the two
+    // splits line up piece for piece.
+    const raw = original.split(SPLIT);
+    let index = -1;
+    for (const piece of text.split(SPLIT)) {
+      index++;
       const trimmed = piece.trim();
       if (trimmed.length === 0) {
         offset += piece.length + 1;
@@ -510,7 +550,20 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
         const r = await p.parse(trimmed);
         for (const s of r.stmts) stmts = [...stmts, { stmt: s.stmt, stmt_location: offset + (s.stmt_location ?? 0) }];
       } catch {
-        unparsed++;
+        // Second attempt: the interpolation may have been a name, not a value.
+        const source = raw[index];
+        const asName = source !== undefined && /[$#]\{/.test(source) ? normalisePlaceholders(asIdentifiers(source)) : null;
+        let recovered = false;
+        if (asName !== null) {
+          try {
+            const r = await p.parse(asName);
+            for (const st of r.stmts) stmts = [...stmts, { stmt: st.stmt, stmt_location: offset + (st.stmt_location ?? 0) }];
+            recovered = true;
+          } catch {
+            recovered = false;
+          }
+        }
+        if (!recovered) unparsed++;
       }
       offset += piece.length + 1;
     }
@@ -525,9 +578,12 @@ export async function claimsFromSql(sql: string, at: QuerySource, schema: Declar
     if (line !== undefined) ev.line = line;
     const w = new Walker(schema, ev);
     w.statement(s.stmt);
-    relationships.push(...w.relationships);
-    polymorphic.push(...w.polymorphic);
-    for (const m of w.mentions) mentions.add(m);
+    const synthetic = (c: { name: string }): boolean => c.name === INTERPOLATED_NAME;
+    relationships.push(...w.relationships.filter((r) => ![...r.from, ...r.to].some(synthetic)));
+    polymorphic.push(...w.polymorphic.filter((c) => ![...c.from, c.discriminator].some(synthetic)));
+    for (const m of w.mentions) {
+      if (!m.startsWith(`${DEFAULT_SCHEMA}.${INTERPOLATED_NAME}`)) mentions.add(m);
+    }
   }
   return { relationships, polymorphic, parsed, unparsed, mentions: [...mentions].sort() };
 }

@@ -133,3 +133,24 @@ test('an unqualified column in a subquery belongs to the outer query when the in
   const ends = [...r.from, ...r.to].map((x) => `${x.name}.${x.column}`).sort();
   assert.deepEqual(ends, ['documents.id', 'stars.documentId'], 'resolving it against the inner scope invented documents.documentId and a self-join');
 });
+
+test('a named parameter with a cast on it is still a parameter', async () => {
+  // `:startUuid::uuid` — the single biggest reason real SQL in Outline went
+  // unread: the rewrite refused any `:name` followed by `::`.
+  const c = await claimsFromSql('SELECT o.id FROM orders o JOIN users u ON u.id = o.user_id WHERE o.id >= :start::uuid AND o.total = ANY(ARRAY[:ids]::numeric[])', { source: 'q.ts', line: 1 });
+  assert.equal(c.unparsed, 0);
+  assert.equal(c.relationships.length, 1);
+  // And a real cast is still a cast, not a parameter.
+  const d = await claimsFromSql('SELECT o.id FROM orders o JOIN users u ON u.id = o.user_id::integer', { source: 'q.ts', line: 1 });
+  assert.equal(d.unparsed, 0);
+  assert.equal(d.relationships.length, 1);
+});
+
+test('an interpolation where a table name goes is read as a name, and nothing is claimed about it', async () => {
+  // Outline again: `${this.workingTable}` is a table, not a value.
+  const c = await claimsFromSql('SELECT t."documentId" FROM ${this.workingTable} t JOIN documents d ON d.id = t."documentId" WHERE NOT t.processed', { source: 'task.ts', line: 1 });
+  assert.equal(c.unparsed, 0, 'the statement is read, not counted as a failure');
+  assert.ok(!c.mentions.some((m) => m.includes('interpolated')), 'a table named at run time is not a table this tool can speak about');
+  assert.deepEqual(c.relationships, [], 'and no edge is claimed onto a string');
+  assert.ok(c.mentions.includes('public.documents'), 'the real table in the same statement is still read');
+});

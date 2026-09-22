@@ -21,6 +21,20 @@ which is Phase 4's exit gate being done rather than described.
   resolving it against the inner scope invented a `documents.documentId` and
   a self-join that does not exist. An unqualified column now walks out through
   the enclosing scopes, which is what a correlated reference is.
+- **A named parameter with a cast on it is a parameter.** The rewrite of
+  `:name` to `$n` refused any name followed by `::`, so `:startUuid::uuid` —
+  which is what a Sequelize query looks like — was left for the parser to
+  choke on. On Outline this one lookahead was the single biggest reason real
+  SQL went unread: with it gone the statements read went from 12 to 22 and
+  the ones refused from 12 to 2.
+- **An interpolation where a table name goes is read as a name.** `SELECT
+  "documentId" FROM ${this.workingTable}` is a real Outline statement, and
+  `${…}` there is a table, not a value. A statement that fails to parse as a
+  value is now retried as a name. Nothing is claimed about the table itself —
+  a table named at run time is not one this tool can speak about — but the
+  rest of the statement is read, and it is no longer counted as a failure.
+- **A cast in a join condition is read through.** `ON u.id = o.user_id::integer`
+  is an ordinary join and was not seen as one.
 - **Migration directories are no longer read as queries.** They are the
   schema; their DML is history. Outline's 2023 migration mentions
   `collection_users`, a table that was real then and has since been renamed,
