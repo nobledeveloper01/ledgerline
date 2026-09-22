@@ -7,8 +7,19 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
 ### Fixed
 
 Everything in this group was found by running `ledgerline check` on real
-repositories — Mastodon (Rails, 116 tables) and Outline (Sequelize, 41) —
-which is Phase 4's exit gate being done rather than described.
+repositories — Mastodon (Rails, 116 tables), Outline (Sequelize, 41) and
+NetBox (Django, 91) — which is Phase 4's exit gate being done rather than
+described.
+
+- **The Django reader now reads Django as it is actually written.** A large
+  project splits its models into a *package*, so the app label — which is half
+  of every default table name — is the directory above `models/`, not
+  `models`; every field spans five or six lines, so a reader that worked a
+  line at a time saw none of them; and a `ForeignKey('dcim.Cable')` reaches
+  into another file, so every file is read before anything is resolved. On
+  NetBox this is the difference between no schema at all and 91 tables.
+- A Django `GenericForeignKey` is reported, not drawn. It is a polymorphic
+  association — a real relationship, and not a foreign key.
 
 - **A CTE in front of an UPDATE or a DELETE was read as a table.** `WITH
   lockable AS (…) UPDATE documents …` reported `lockable` as a table the
@@ -42,6 +53,10 @@ which is Phase 4's exit gate being done rather than described.
   read from the config file and never used — now works too, and the migration
   directories join it.
 
+- **"No findings. Every relationship the queries rely on is declared" is a
+  claim about the queries**, and there is none to make when the queries
+  touched none of the declared tables. NetBox reads three statements and names
+  not one of its 91 tables in them; the check now says so instead.
 - **A check that read no schema now fails.** It used to print *No findings.
   Every relationship the queries rely on is declared.* and exit 0 for a
   repository it had not read a single table of. In a pipeline that is the

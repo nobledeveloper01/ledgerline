@@ -147,9 +147,14 @@ export async function check(options: CommonOptions & { write?: boolean; baseline
     );
   }
   if (active.length === 0) {
+    // *Every relationship the queries rely on is declared* is a claim about
+    // the queries, and there is no such claim to make when the queries
+    // touched nothing. NetBox parses three statements and names not one of
+    // its 91 tables in them; saying the schema and the queries agree would be
+    // true the way it is true of two strangers.
     lines.push(
-      built.statementsParsed === 0
-        ? `No findings — but no query was read either, so this says only that ${built.schema.tables.length} declared tables disagree with nothing. Point "queries" at the SQL to get a claim worth checking.`
+      unsampled.length === built.model.tables.length
+        ? `No findings — but no query that was read named any of the ${built.schema.tables.length} declared tables, so this says only that the schema disagrees with nothing. Point "queries" or "logs" at the SQL to get a claim worth checking.`
         : 'No findings. Every relationship the queries rely on is declared.',
     );
   }

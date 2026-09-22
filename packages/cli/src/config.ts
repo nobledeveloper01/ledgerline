@@ -160,8 +160,13 @@ export function resolveConfig(root: string, config: Config = readConfig(root)): 
   const migrations = config.migrations ?? MIGRATION_DIRS.filter((d) => existsSync(join(root, d)));
   const prisma = config.prisma ?? PRISMA_FILES.find((f) => existsSync(join(root, f))) ?? null;
   const rails = config.rails ?? RAILS_FILES.find((f) => existsSync(join(root, f))) ?? null;
-  // One list of `models.py`, split by what each file actually says it is.
-  const pythonModels = config.django === undefined || config.sqlalchemy === undefined ? findFiles(root, (name) => name === 'models.py' || name === 'model.py') : [];
+  // Python model files, split by what each one actually says it is. A large
+  // Django project splits its models into a package, so `.py` under a
+  // `models/` directory counts as much as a `models.py` does.
+  const pythonModels =
+    config.django === undefined || config.sqlalchemy === undefined
+      ? findFiles(root, (name, dir) => (name === 'models.py' || name === 'model.py' || (name.endsWith('.py') && !name.startsWith('__') && /(^|\/)models?$/.test(dir))) && !name.startsWith('test_'), 6)
+      : [];
   const kinds = new Map(pythonModels.map((f) => [f, ormKindOf(readFileSync(join(root, f), 'utf8'))]));
   return {
     root,

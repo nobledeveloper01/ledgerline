@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { parseDjangoModels, parseRailsSchema, singularize } from '../src/index.ts';
+import { appLabelOf, parseDjangoModels, parseRailsSchema, singularize } from '../src/index.ts';
 
 const here = join(import.meta.dirname, 'orm');
 
@@ -66,7 +66,7 @@ test('the inflector knows the regular rules and says nothing it does not know', 
 
 test("Django's models.py reads back as the tables Django would create", () => {
   const path = join(here, 'shop', 'models.py');
-  const { schema, unread } = parseDjangoModels(readFileSync(path, 'utf8'), path);
+  const { schema, unread } = parseDjangoModels([{ path, text: readFileSync(path, 'utf8') }]);
 
   // `<app>_<model>` from the directory, `db_table` when given, the join table
   // Django makes for a ManyToMany, and nothing for abstract or unmanaged.
@@ -97,5 +97,80 @@ test("Django's models.py reads back as the tables Django would create", () => {
 
   // The one thing it could not resolve, said out loud rather than guessed.
   assert.equal(unread.length, 1);
-  assert.match(unread[0]!.reason, /ForeignKey to auth\.User, which is not a model in this file/);
+  assert.match(unread[0]!.reason, /ForeignKey to auth\.User, which is not a model among the files read/);
+});
+
+test("a large Django project's models are a package, and the app label is the app", () => {
+  // `netbox/dcim/models/devices.py` is the `dcim` app, not the `models` app —
+  // and getting that wrong renames every table in the schema.
+  assert.equal(appLabelOf('netbox/dcim/models/devices.py'), 'dcim');
+  assert.equal(appLabelOf('netbox/dcim/models.py'), 'dcim');
+  assert.equal(appLabelOf('shop/model/order.py'), 'shop');
+});
+
+test("a Django field spans as many lines as it likes, and reaches across files for its target", () => {
+  // NetBox's real style: every ForeignKey across five or six lines, with the
+  // other side named as `'app.Model'` in another file entirely.
+  const cables = `
+from django.db import models
+
+
+class Cable(models.Model):
+    tenant = models.ForeignKey(
+        to='tenancy.Tenant',
+        on_delete=models.PROTECT,
+        related_name='cables',
+        blank=True,
+        null=True
+    )
+    label = models.CharField(
+        verbose_name=_('label'),
+        max_length=100,
+        blank=True
+    )
+
+
+class CableTermination(models.Model):
+    cable = models.ForeignKey(
+        to='dcim.Cable',
+        on_delete=models.CASCADE,
+        related_name='terminations'
+    )
+    termination_type = models.ForeignKey(
+        to='contenttypes.ContentType',
+        on_delete=models.PROTECT,
+        related_name='+'
+    )
+    termination = GenericForeignKey(
+        ct_field='termination_type',
+        fk_field='termination_id'
+    )
+`;
+  const tenancy = `
+from django.db import models
+
+
+class Tenant(models.Model):
+    name = models.CharField(max_length=100)
+`;
+  const { schema, unread } = parseDjangoModels([
+    { path: 'netbox/dcim/models/cables.py', text: cables },
+    { path: 'netbox/tenancy/models/tenants.py', text: tenancy },
+  ]);
+
+  assert.deepEqual(schema.tables.map((t) => t.name), ['dcim_cable', 'dcim_cabletermination', 'tenancy_tenant']);
+  const cable = schema.tables.find((t) => t.name === 'dcim_cable')!;
+  assert.ok(cable.columns.some((c) => c.name === 'tenant_id' && c.nullable), 'a five-line ForeignKey is still a column');
+  assert.ok(cable.columns.some((c) => c.name === 'label' && c.type === 'character varying(100)'), 'and max_length is found however far down it is');
+
+  assert.deepEqual(
+    schema.foreignKeys.map((fk) => `${fk.from[0]!.name}.${fk.from[0]!.column}→${fk.to[0]!.name}`).sort(),
+    ['dcim_cable.tenant_id→tenancy_tenant', 'dcim_cabletermination.cable_id→dcim_cable'],
+  );
+
+  // A GenericForeignKey is a real relationship and is not a foreign key;
+  // ContentType lives in Django itself and is not among the files.
+  const reasons = unread.map((u) => u.reason).sort();
+  assert.ok(reasons.some((r) => /GenericForeignKey/.test(r)), reasons.join(' | '));
+  assert.ok(reasons.some((r) => /contenttypes\.ContentType, which is not a model among the files read/.test(r)));
 });

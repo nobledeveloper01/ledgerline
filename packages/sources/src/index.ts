@@ -5,7 +5,7 @@
 export { listMigrations, schemaFromMigrations, schemaFromMigrationsReporting, type MigrationFile } from './migrations.ts';
 export { parsePrisma } from './prisma.ts';
 export { parseRailsSchema, singularize, RAILS_SCHEMA_FILES, type RailsSchema } from './rails.ts';
-export { parseDjangoModels, type DjangoSchema } from './django.ts';
+export { parseDjangoModels, appLabelOf, type DjangoSchema } from './django.ts';
 export { parseSqlAlchemyModels, type SqlAlchemySchema } from './sqlalchemy.ts';
 export { parseTypeOrmEntities, snakeCase, type TypeOrmSchema } from './typeorm.ts';
 export { parseEfCoreSnapshot, type EfCoreSchema } from './efcore.ts';

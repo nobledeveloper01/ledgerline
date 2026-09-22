@@ -99,13 +99,16 @@ export async function declaredSchema(config: Resolved, options: BuildOptions = {
       names.push(`${files.length} Sequelize model${files.length === 1 ? '' : 's'}`);
     }
   }
-  if (parts.length === 0) {
-    for (const models of config.django) {
-      const full = join(config.root, models);
-      if (!existsSync(full)) continue;
-      parts.push(parseDjangoModels(readFileSync(full, 'utf8'), full).schema);
-      names.push(models);
+  if (parts.length === 0 && config.django.length > 0) {
+    // Every model file at once: `ForeignKey('dcim.Cable')` reaches across them.
+    const files = config.django.filter((f) => existsSync(join(config.root, f))).map((f) => ({ path: join(config.root, f), text: readFileSync(join(config.root, f), 'utf8') }));
+    const read = parseDjangoModels(files);
+    if (read.schema.tables.length > 0) {
+      parts.push(read.schema);
+      names.push(`${files.length} Django model file${files.length === 1 ? '' : 's'}`);
     }
+  }
+  if (parts.length === 0) {
     for (const models of config.sqlalchemy) {
       const full = join(config.root, models);
       if (!existsSync(full)) continue;
