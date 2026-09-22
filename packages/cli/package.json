@@ -1,0 +1,29 @@
+{
+  "name": "ledgerline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The diagram of your database derived from what your code actually does, and a build that fails when the two disagree.",
+  "license": "Apache-2.0",
+  "bin": { "ledgerline": "./dist/bin.js" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --conditions=source --test 'test/**/*.test.ts'",
+    "lint": "eslint src test"
+  },
+  "dependencies": {
+    "@ledgerline/model": "workspace:*",
+    "@ledgerline/parse": "workspace:*",
+    "@ledgerline/render": "workspace:*",
+    "@ledgerline/sources": "workspace:*",
+    "picocolors": "^1.1.1"
+  },
+  "peerDependencies": { "pg": ">=8" },
+  "peerDependenciesMeta": { "pg": { "optional": true } },
+  "devDependencies": { "@types/node": "^24.3.0", "typescript": "^5.9.2" }
+}

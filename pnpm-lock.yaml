@@ -24,6 +24,34 @@ importers:
         specifier: ^8.44.0
         version: 8.70.0(eslint@9.39.5)(typescript@5.9.3)
 
+  packages/cli:
+    dependencies:
+      '@ledgerline/model':
+        specifier: workspace:*
+        version: link:../model
+      '@ledgerline/parse':
+        specifier: workspace:*
+        version: link:../parse
+      '@ledgerline/render':
+        specifier: workspace:*
+        version: link:../render
+      '@ledgerline/sources':
+        specifier: workspace:*
+        version: link:../sources
+      pg:
+        specifier: '>=8'
+        version: 8.23.0
+      picocolors:
+        specifier: ^1.1.1
+        version: 1.1.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.3.0
+        version: 24.13.6
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
   packages/model:
     devDependencies:
       '@types/node':
@@ -101,9 +129,15 @@ importers:
       '@ledgerline/parse':
         specifier: workspace:*
         version: link:../packages/parse
+      '@ledgerline/render':
+        specifier: workspace:*
+        version: link:../packages/render
       '@ledgerline/sources':
         specifier: workspace:*
         version: link:../packages/sources
+      ledgerline:
+        specifier: workspace:*
+        version: link:../packages/cli
 
 packages:
 
@@ -561,6 +595,9 @@ packages:
 
   pgpass@1.0.5:
     resolution: {integrity: sha512-FdW9r/jQZhSeohs1Z3sI1yxFQNFvMcnmfuj4WBMUTxOrAyLMaTcE1aAMBiTlbMNaXvBCQuVi0R7hd8udDSP7ug==}
+
+  picocolors@1.1.1:
+    resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
   picomatch@4.0.7:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
@@ -1161,6 +1198,8 @@ snapshots:
   pgpass@1.0.5:
     dependencies:
       split2: 4.2.0
+
+  picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
 

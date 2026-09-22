@@ -134,7 +134,7 @@ test can hold: a label and a tab stop on every table and edge, a live region for
 the panel, `role="img"` on the diagram, and contrast; a screen-reader pass by a
 person is not a thing a test does, and is noted in the journal.
 
-## Phase 4 — Drift as a gate → **v1.0** · **current**
+## Phase 4 — Drift as a gate → **v1.0** · **current** — the code is built, the gate is not cleared
 
 The reason the product exists.
 
@@ -159,6 +159,21 @@ The reason the product exists.
 histories, `ledgerline check` finds at least one true undeclared relationship in
 each and reports zero false ones; the pull-request comment renders on a real PR in
 this repository.*
+
+**The code is built; the gate is not cleared, and will not be claimed.** The
+command exists — `check`, `model`, `report`, `mermaid`, `baseline`, `explain`,
+`blast`, `history`, `pr` — with a config file that is optional, a stale model
+file failing the build, and the Action that posts one comment and edits it in
+place. `make self-check` runs the tool on its own fixture, watches it find the
+drift, watches it pass once the constraints are declared, and watches a planted
+join fail it. `make badge-check` fails when the README's number disagrees with
+what the check says.
+
+What is **not** done is the gate itself: three public repositories, run by hand,
+with a person reading every finding to say whether it is true. That is an
+afternoon of reading, not a script, and until somebody does it the honest state
+of this phase is *the code is ready to be tested against reality*. Nothing in the
+README or the changelog says otherwise.
 
 ## Phase 5 — Breadth · v1.1
 

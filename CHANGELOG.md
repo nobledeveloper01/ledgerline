@@ -6,6 +6,27 @@ What changed for someone *using* Ledgerline. Format follows Keep a Changelog.
 
 ### Added
 
+- **The command.** `ledgerline check` on a repository with no configuration and
+  no database: it finds the migrations where migration tools put them, reads the
+  queries out of the whole repository, and prints one sentence per finding with
+  the line in it. `model` writes `ledgerline.model.json`; a stale one fails the
+  check, because a stale diagram is the thing this exists to stop. `report`
+  writes the HTML, `mermaid` the README's diagram, `baseline` accepts today's
+  debt so an old codebase can turn the gate on today and pay it down one pull
+  request at a time (ADR-0003 #12), `explain` prints the evidence chain and the
+  DDL that would close a finding — for a person to put in a migration, never run
+  by the tool (#13), `blast` says what a change to a table reaches and where to
+  look (#9), `history` says when each table and column arrived, from the
+  migration files (#7), and `pr` writes the pull-request comment that leads with
+  a sentence and puts the detail in a `<details>` (#11).
+- **The GitHub Action**, which is the same CLI: one comment per pull request,
+  edited in place rather than added to on every push. No database required.
+- **The tool gates itself.** `make self-check` runs `ledgerline check` on the
+  shop fixture, requires it to find the two undeclared joins and the ghost
+  table, requires it to pass once the constraints are declared, and plants a new
+  join to watch it fail. `make badge-check` fails when the README's undeclared
+  count disagrees with what the check says (#15).
+
 - **The picture.** One static HTML file: ELK's layered layout computed at build
   time, inline SVG, and a few hundred lines of inline script for pan, zoom,
   search, focus at one or two hops with the focus in the URL hash (ADR-0003 #10),

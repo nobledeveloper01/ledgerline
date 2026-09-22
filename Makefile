@@ -7,7 +7,7 @@ help: ## Show this help
 
 ci: gates test ## Everything CI runs
 
-gates: typecheck lint boundary doc-check fixtures-check ## The blocking checks alone
+gates: typecheck lint boundary doc-check fixtures-check self-check badge-check ## The blocking checks alone
 
 typecheck: ## tsc across the workspace, and the scripts
 	@pnpm -r typecheck
@@ -28,6 +28,15 @@ fixtures: ## Regenerate every fixture's expected.json from the rules — deliber
 fixtures-check: ## Fail if a rule changed and no fixture changed with it
 	@node --conditions=source scripts/emit-fixtures.ts --check
 
+self-check: ## Run the tool on its own fixtures, with a planted drift, and require it to fail
+	@./scripts/self-check.sh
+
+badge: ## Refresh the README's Mermaid diagram and its undeclared-join count from the check itself
+	@node --conditions=source scripts/badge.ts
+
+badge-check: ## Fail if the README's badge does not match what the check says
+	@node --conditions=source scripts/badge.ts --check
+
 test: ## Every package's tests; the live-database tests skip yellow unless LEDGERLINE_TEST_DATABASE_URL is set
 	@pnpm -r test
 
@@ -43,4 +52,4 @@ large: ## Regenerate the 200-table migrations fixture
 hooks: ## Install the git hooks
 	@git config core.hooksPath .githooks && echo "hooks installed"
 
-.PHONY: help ci gates typecheck lint boundary doc-check fixtures fixtures-check test live-check large hooks
+.PHONY: help ci gates typecheck lint boundary doc-check fixtures fixtures-check self-check badge badge-check test live-check large hooks

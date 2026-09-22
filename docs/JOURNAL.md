@@ -5,6 +5,43 @@ The surprises are the point.
 
 ---
 
+## 2026-09-23 — Phase 4's code: the command, the gate, and what is not cleared
+
+**Did.** The baseline, explain, blast and usage rules in the model; schema
+archaeology in sources; the CLI with nine commands; the Action; `self-check`
+and `badge-check` as gates. 55 tests, 9 gates, `make ci` green.
+
+### What surprised us
+
+**The baseline stopped recognising its own debt.** The finding sentence
+carries the support count — *(and 1 more)* — so copying a query into a second
+file changed the sentence, changed the key, and resurrected debt somebody had
+already accepted. The key strips the count and the line numbers now. The test
+that caught it was the one that moved a query down a file.
+
+**A test told me the truth about a test.** I asserted that a model with one
+query, checked against a baseline from a model with three, had nothing new —
+and it did have something new: with the other queries gone, a column that had
+related to something now related to nothing, and naming drift fired. The rule
+was right and my scenario was wrong.
+
+**`explain` could not explain half its own findings.** It found the edge by
+reading the arrow out of the sentence, and the orphan-side sentence has no
+arrow. It reads that shape too now. A finding the tool cannot explain is a
+finding a person cannot act on.
+
+**The phase gate is not the code.** Everything in Phase 4's list is built and
+tested, and the gate says *three public repositories, zero false findings,
+read by a person*. That is not something I can do by writing more tests, and
+the roadmap now says the code is ready to be tested against reality rather
+than pretending the phase is cleared. This is the same discipline as the
+handset gates in the mobile portfolio.
+
+### Still open
+
+- The Phase 4 gate itself: three real repositories, read by hand.
+- Phase 5: MySQL, and the other ORM sources.
+
 ## 2026-09-23, small hours — Phase 3: the picture
 
 **Did.** `@ledgerline/render`: ELK at build time, the SVG, the HTML with its

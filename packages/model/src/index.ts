@@ -11,3 +11,5 @@ export * from './claims.ts';
 export * from './reconcile.ts';
 export * from './diff.ts';
 export * from './findings.ts';
+export * from './baseline.ts';
+export * from './explain.ts';

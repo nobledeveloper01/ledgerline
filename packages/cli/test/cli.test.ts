@@ -1,0 +1,109 @@
+import assert from 'node:assert/strict';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+
+import { baseline, blast, check, explain, history, mermaid, prComment, report } from '../src/index.ts';
+
+function repo(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'ledgerline-cli-'));
+  cpSync(join(import.meta.dirname, 'repo'), dir, { recursive: true });
+  return dir;
+}
+
+test('check on a repository that has never heard of the tool: one command, no config, no database', async () => {
+  const root = repo();
+  const out = await check({ root });
+  assert.equal(out.code, 1);
+  const text = out.lines.join('\n');
+  assert.match(text, /schema from migrations/);
+  assert.match(text, /fail: The join in app\/queries\.sql:1 relies on public\.orders\.user_id → public\.users\.id, which no constraint declares\./);
+  assert.match(text, /warn: Rows in public\.orders may reference no public\.users/);
+  assert.ok(!text.includes('invoices.order_id=orders.id'), 'the declared-and-used join is not a finding');
+});
+
+test('check --write writes the model; a later check compares against it and says what moved', async () => {
+  const root = repo();
+  await check({ root, write: true });
+  assert.ok(existsSync(join(root, 'ledgerline.model.json')));
+  const clean = await check({ root });
+  assert.ok(!clean.lines.join('\n').includes('out of date'));
+
+  // A migration lands that adds the missing constraint: the finding goes, and the model file is stale.
+  writeFileSync(join(root, 'migrations', '002_fk.sql'), 'ALTER TABLE orders ADD CONSTRAINT orders_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id);');
+  const after = await check({ root });
+  const text = after.lines.join('\n');
+  assert.equal(after.code, 1, 'a stale model file fails, because a stale diagram is the thing this exists to stop');
+  assert.match(text, /ledgerline\.model\.json is out of date: 1 changed state/);
+  assert.ok(!text.includes('which no constraint declares'), 'the join is declared now');
+  const fixed = await check({ root, write: true });
+  assert.equal(fixed.code, 0);
+  assert.match(fixed.lines.join('\n'), /No findings\./);
+});
+
+test('a baseline lets an old codebase adopt the gate today, and only new debt fails', async () => {
+  const root = repo();
+  await check({ root, write: true });
+  const taken = await baseline({ root });
+  assert.match(taken.lines.join('\n'), /New ones will fail; these will not\./);
+  const accepted = await check({ root });
+  assert.equal(accepted.code, 0, "today's debt is accepted");
+  assert.match(accepted.lines.join('\n'), /finding.* accepted by ledgerline\.baseline\.json/);
+
+  // A new undeclared join arrives: that one fails.
+  writeFileSync(join(root, 'app', 'more.sql'), 'SELECT * FROM invoices i JOIN users u ON u.id = i.order_id;');
+  const fresh = await check({ root });
+  assert.equal(fresh.code, 1);
+  assert.match(fresh.lines.join('\n'), /invoices\.order_id → public\.users\.id/);
+});
+
+test('explain gives the evidence and the DDL, and says plainly that it does not run it', async () => {
+  const root = repo();
+  const out = await explain('orders.user_id', { root });
+  const text = out.lines.join('\n');
+  assert.equal(out.code, 0);
+  assert.match(text, /Many to one: public\.users\.id is unique/);
+  assert.match(text, /query · app\/queries\.sql:1/);
+  assert.match(text, /Ledgerline does not run it/);
+  assert.match(text, /ADD CONSTRAINT orders_user_id_fkey/);
+  assert.equal((await explain('nothing like this', { root })).code, 1);
+});
+
+test('blast says what a change reaches and where to look; history says when each thing arrived', async () => {
+  const root = repo();
+  const b = await blast('users', { root });
+  const text = b.lines.join('\n');
+  assert.match(text, /public\.users: 1 direct relationship, 1 one hop further/);
+  assert.match(text, /app\/queries\.sql:1/);
+  assert.equal((await blast('nope', { root })).code, 1);
+
+  const h = await history(null, { root });
+  assert.match(h.lines.join('\n'), /001_init\.sql\n {2}table created {3}public\.invoices {2}2 columns, key id/);
+  assert.equal((await history('users', { root })).code, 0);
+});
+
+test('report writes one HTML file; mermaid prints the diagram and the badge line', async () => {
+  const root = repo();
+  const r = await report({ root });
+  assert.equal(r.code, 0);
+  const html = readFileSync(join(root, 'ledgerline.html'), 'utf8');
+  assert.ok(html.startsWith('<!doctype html>'));
+  assert.ok(html.includes('public.orders'));
+  const m = await mermaid({ root });
+  assert.match(m.lines.join('\n'), /erDiagram/);
+  assert.match(m.lines.join('\n'), /<!-- 1 undeclared join -->/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('the pull-request comment leads with the sentence, then the detail, and fails only on failures', async () => {
+  const root = repo();
+  await check({ root, write: true });
+  const out = await prComment({ root });
+  assert.equal(out.code, 1);
+  const lines = out.lines;
+  assert.equal(lines[0], '**1 relationship the code relies on is not declared.**');
+  assert.ok(lines.some((l) => l.startsWith('- **fail**')));
+  assert.ok(lines.some((l) => l.includes('<details><summary>What this change did to the schema</summary>')));
+  assert.ok(lines[lines.length - 1]!.includes('1 undeclared join'));
+});

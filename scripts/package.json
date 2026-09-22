@@ -1,1 +1,12 @@
-{ "name": "ledgerline-scripts", "private": true, "type": "module", "dependencies": { "@ledgerline/model": "workspace:*", "@ledgerline/sources": "workspace:*", "@ledgerline/parse": "workspace:*" } }
+{
+  "name": "ledgerline-scripts",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@ledgerline/model": "workspace:*",
+    "@ledgerline/sources": "workspace:*",
+    "@ledgerline/parse": "workspace:*",
+    "@ledgerline/render": "workspace:*",
+    "ledgerline": "workspace:*"
+  }
+}

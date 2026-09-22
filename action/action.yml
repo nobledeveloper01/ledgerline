@@ -1,0 +1,51 @@
+name: Ledgerline
+description: Fail the build when the schema and the queries disagree, and comment the change on a pull request.
+author: Ledgerline
+branding: { icon: git-merge, color: blue }
+inputs:
+  command:
+    description: check (default), model, report, or pr.
+    default: check
+  root:
+    description: The repository root to read. Defaults to the workspace.
+    default: '.'
+  database-url:
+    description: Read the declared schema from a live database instead of the files. Optional; never required.
+    required: false
+  comment:
+    description: On a pull request, post the comment. Needs pull-requests write permission.
+    default: 'true'
+  token:
+    description: The token used to post the comment.
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - name: Ledgerline
+      shell: bash
+      env:
+        LEDGERLINE_DATABASE_URL: ${{ inputs.database-url }}
+      run: |
+        set -o pipefail
+        npx --yes ledgerline@latest ${{ inputs.command }} --root "${{ inputs.root }}" --no-color | tee "$RUNNER_TEMP/ledgerline.out"
+        echo "code=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+    - name: Comment
+      if: ${{ github.event_name == 'pull_request' && inputs.comment == 'true' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        npx --yes ledgerline@latest pr --root "${{ inputs.root }}" --no-color > "$RUNNER_TEMP/ledgerline.md" || true
+        # One comment per pull request, edited in place: a bot that posts a new
+        # comment on every push is a bot people mute.
+        marker='<!-- ledgerline -->'
+        printf '%s\n' "$marker" >> "$RUNNER_TEMP/ledgerline.md"
+        existing=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.number }}/comments" --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -1)
+        if [ -n "$existing" ]; then
+          gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$existing" -F body=@"$RUNNER_TEMP/ledgerline.md" >/dev/null
+        else
+          gh api -X POST "repos/${{ github.repository }}/issues/${{ github.event.number }}/comments" -F body=@"$RUNNER_TEMP/ledgerline.md" >/dev/null
+        fi
+    - name: Fail on findings
+      shell: bash
+      run: exit "${code:-0}"

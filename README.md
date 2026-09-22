@@ -19,21 +19,76 @@ before-and-after diagram as a comment.
 npx ledgerline check          # one command, no database, no account
 ```
 
+<!-- ledgerline:start -->
+
+**3 undeclared joins** in the example schema below — counted by `ledgerline check`, not by anyone's say-so.
+
+```mermaid
+erDiagram
+  public_comments {
+    bigint id PK
+    text owner_type
+    bigint owner_id
+    text body
+  }
+  public_invoices {
+    integer id PK
+    integer order_id
+    boolean paid
+  }
+  public_orders {
+    integer id PK
+    integer user_id
+    numeric total
+    timestamp_with_time_zone created_at
+  }
+  public_photos {
+    bigint id PK
+    text url
+  }
+  public_posts {
+    bigint id PK
+    text title
+  }
+  public_refunds {
+    integer id PK
+    integer invoice_id
+    numeric amount
+  }
+  public_users {
+    integer id PK
+    text email UK
+  }
+  public_refunds }o..|| public_invoices : "invoice_id"
+  public_invoices }o--|| public_orders : "order_id"
+```
+
+<!-- ledgerline:end -->
+
 ## Status
 
-**Phase 4 of 5 — drift as a gate.** The model, the readers and the picture
-exist: the declared side (DDL through PostgreSQL's own grammar, migrations,
-Prisma, a live database) and the used side (joins, subqueries and the
-polymorphic shape read out of `.sql` files, query logs and source literals in
-eleven languages, every literal masked) reconcile into one model, held by a
-200-world property test, and render as one static HTML file with pan, zoom,
-search, focus subgraphs and an evidence panel. What does not exist yet is the
-command and the gate — `ledgerline check` failing a build — which is this phase.
+**Phase 4 of 5 — drift as a gate. The code is built; the gate is not cleared.**
+`ledgerline check` runs on a repository with no configuration and no database,
+finds the relationships the queries rely on that no migration declares, and
+exits non-zero. There is a baseline for old codebases, `explain` with the DDL
+that would close a finding, `blast` for what a change reaches, `history` from
+the migration files, a static HTML report, a Mermaid diagram, and a GitHub
+Action that posts one pull-request comment and edits it in place. The tool
+gates itself: `make self-check` plants a drift in its own fixture and requires
+the check to fail.
 
-**The numbers.** 43 tests across four packages, two of them against a real
-PostgreSQL, one a 200-world property · 5 fixtures diffed on every build, one of
-200 tables · 7 gates, the boundary gate broken on purpose every run · 3 ADRs,
-one of them fifteen more things.
+**What is not done:** running it against three real public repositories and
+reading every finding by hand to confirm it is true. Until that afternoon
+happens this is code that works on its own corpus, which is not the same claim.
+
+```
+npx ledgerline check
+```
+
+**The numbers.** 55 tests across five packages, two against a real PostgreSQL,
+one a 200-world property · 5 fixtures diffed on every build, one of 200 tables ·
+9 gates, three of them — the boundary, the fixtures and the tool itself — broken
+on purpose every run · 3 ADRs.
 
 | | |
 |---|---|
